@@ -59,7 +59,7 @@ const expectedHeaders = ['loan_id',
 ];
 
 export const handleUpload = async (req, res) => {
-    console.log(req.user);
+    console.log(req.file);
 
     if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });

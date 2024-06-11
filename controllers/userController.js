@@ -8,6 +8,8 @@ import NBFCcolumns from "./masterColumns.js";
 import jwt from "jsonwebtoken";
 import Joi from "joi";
 import fs from "fs";
+import { UploadOnCLoudinary } from '../utils/cloudinary.js';
+
 
 export const userRegister = async (req, res, next) => {
     try {
@@ -347,6 +349,73 @@ export const getUserProfile = async (req, res, next) => {
         return res.status(500).send({ success: false, message: "Internal server error." });
     }
 };
+export const testing = async (req, res, next) => {
+
+    const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA'];
+    const uploadResults = {};
+
+    // Check if any files are uploaded
+    const noFilesUploaded = allowedFields.every(field => !req.files[field]);
+    if (noFilesUploaded) {
+        return res.status(400).json({ message: 'No files uploaded' });
+    }
+
+    try {
+        for (const field of allowedFields) {
+            if (req.files[field]) {
+                const filePath = req.files[field][0].path;
+                uploadResults[field] = await UploadOnCLoudinary(filePath);
+            }
+        }
+
+        res.status(200).json({ message: 'Files uploaded successfully', results: uploadResults });
+    } catch (error) {
+        console.error('Error uploading files:', error);
+        res.status(500).json({ message: 'File upload failed' });
+    }
+};
+
+
+// export const testing = async (req, res, next) => {
+//     console.log(req.files);
+
+//     if (!req.files || (!req.files.file && !req.files.Pan && !req.files.Adhaar)) {
+//         return res.status(400).json({ message: 'No files uploaded' });
+//     }
+
+//     try {
+//         const uploadResults = {};
+
+//         if (req.files.file) {
+//             const filePath = req.files.file[0].path;
+//             uploadResults.file = await UploadOnCLoudinary(filePath);
+//         }
+
+//         if (req.files.Pan) {
+//             const panPath = req.files.Pan[0].path;
+//             uploadResults.Pan = await UploadOnCLoudinary(panPath);
+//         }
+
+//         if (req.files.Adhaar) {
+//             const adhaarPath = req.files.Adhaar[0].path;
+//             uploadResults.Adhaar = await UploadOnCLoudinary(adhaarPath);
+//         }
+
+//         res.status(200).json({ message: 'Files uploaded successfully', results: uploadResults });
+//     } catch (error) {
+//         console.error('Error uploading files:', error);
+//         res.status(500).json({ message: 'File upload failed' });
+//     }
+// };
+
+
+
+
+
+
+
+
+
 // ALL FUNCTIONS
 const updateProfile = async (req, res) => {
     let profile = '';
