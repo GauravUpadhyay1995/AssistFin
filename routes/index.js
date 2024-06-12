@@ -12,7 +12,7 @@ const cpUpload1 = upload.fields([
 ])
 
 const route = express.Router();
-route.post("/userRegister", authMiddleware, userController.userRegister);
+route.post("/userRegister", [cpUpload1, authMiddleware], userController.userRegister);
 route.post("/userLogin", userController.userLogin);
 route.post("/UpdateUserProfile", [cpUpload, authMiddleware], userController.UpdateUserProfile);
 route.post("/deleteUser", [authMiddleware], userController.deleteUser);

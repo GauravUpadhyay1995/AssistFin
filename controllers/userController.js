@@ -14,32 +14,30 @@ import { UploadOnCLoudinary } from '../utils/cloudinary.js';
 export const userRegister = async (req, res, next) => {
     try {
 
-
         const updateSchema = Joi.object({
-            // school_id: Joi.number().min(1).required(),
             nbfc_name: Joi.string().min(2).max(50).required(),
             email: Joi.string().email().required(),
             incorporation_date: Joi.date().required(),
             registration_number: Joi.string().required(),
             gst_number: Joi.string().required(),
             license_number: Joi.string().required(),
-            nbfc_type: Joi.array().items(Joi.string()).required(),
+            nbfc_type: Joi.string().required(),
             mobile: Joi.number().required(),
             registered_address: Joi.string().required(),
-            office_address: Joi.string().required(),
-            website: Joi.string().min(6),
-            fax_number: Joi.string().min(4),
-            ceo: Joi.string().min(2),
-            cfo: Joi.string().min(2),
-            compliance_officer: Joi.string().min(2),
-            number_of_office: Joi.number().min(1),
-            language_covered: Joi.string().min(4),
-            key_service: Joi.string().min(2),
-            clientele: Joi.string().min(2),
+            office_address: Joi.string().allow('').required(),
+            website: Joi.string().min(6).allow('').optional(),
+            fax_number: Joi.string().min(4).allow('').optional(),
+            ceo: Joi.string().min(2).allow('').optional(),
+            cfo: Joi.string().min(2).allow('').optional(),
+            compliance_officer: Joi.string().min(2).allow('').optional(),
+            number_of_office: Joi.number().min(1).allow('').optional(),
+            language_covered: Joi.string().min(4).allow('').optional(),
+            key_service: Joi.string().min(2).allow('').optional(),
+            clientele: Joi.string().min(2).allow('').optional(),
             password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
             type: Joi.string().min(4).required(),
             // Add validation for other fields you want to update
-        });//.or("name", "email", "password", "mobile", "status")
+        });
 
         const { error } = updateSchema.validate(req.body);
         if (error) {
@@ -47,7 +45,7 @@ export const userRegister = async (req, res, next) => {
             const errorType = error.details[0].type;
 
             if (errorType == "string.pattern.base") {
-                return res.status(400).json({ success: false, message: `Password must have atleast one capital letter, one small letter,one numreic,one special char,min 8 char and max 6 char.`, errorType: errorType });
+                return res.status(400).json({ success: false, message: `Password must have atleast one capital letter, one small letter,one numreic,one special char,min 8 char and max 16 char.`, errorType: errorType });
 
             }
             return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
@@ -101,7 +99,6 @@ export const userLogin = async (req, res, next) => {
         const { email, password } = req.body;
         const userQuery = "SELECT isActive,nbfc_name,id, password, email,profile,type FROM tbl_users WHERE email = ?";
         db.query(userQuery, [email], async (error, result) => {
-
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -188,19 +185,23 @@ export const getAgents = async (req, res) => {
 
         const { id, type } = req.user;
         const { active } = req.body;
-        if ((type === "employee") || (type === "agency")) {
+        if ((type === "employee")) {
             return res.status(400).send({ success: false, message: "Cant Access Agent Module." });
         }
         let filterQuery = "";
+        let filterType = "";
         if (active != '' && active != undefined) {
             filterQuery += ` and isActive=${active}`;
         }
+        if (type === "agency") {
+            filterType = `'employee'`;
+        } else if (type === "nbfc") {
+            filterType = `'agency'`;
+        }
 
-
-        const Query = `select * from tbl_users where created_by=? and type='agency' ${filterQuery}`;
+        const Query = `select * from tbl_users where created_by=? and type=${filterType} ${filterQuery}`;
 
         db.query(Query, [id], async (error, result) => {
-            console.log(Query, [id])
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -244,7 +245,6 @@ export const getEmployees = async (req, res) => {
         const Query = `select * from tbl_users where created_by=? and type='employee' ${filterQuery}`;
 
         db.query(Query, [agencyId], async (error, result) => {
-            console.log(Query, [agencyId])
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -286,7 +286,6 @@ export const getNBFC = async (req, res) => {
         const Query = `select * from tbl_users where  type='nbfc' ${filterQuery} order by date(created_date)`;
 
         db.query(Query, [id], async (error, result) => {
-            console.log(Query, [id])
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -376,46 +375,6 @@ export const testing = async (req, res, next) => {
 };
 
 
-// export const testing = async (req, res, next) => {
-//     console.log(req.files);
-
-//     if (!req.files || (!req.files.file && !req.files.Pan && !req.files.Adhaar)) {
-//         return res.status(400).json({ message: 'No files uploaded' });
-//     }
-
-//     try {
-//         const uploadResults = {};
-
-//         if (req.files.file) {
-//             const filePath = req.files.file[0].path;
-//             uploadResults.file = await UploadOnCLoudinary(filePath);
-//         }
-
-//         if (req.files.Pan) {
-//             const panPath = req.files.Pan[0].path;
-//             uploadResults.Pan = await UploadOnCLoudinary(panPath);
-//         }
-
-//         if (req.files.Adhaar) {
-//             const adhaarPath = req.files.Adhaar[0].path;
-//             uploadResults.Adhaar = await UploadOnCLoudinary(adhaarPath);
-//         }
-
-//         res.status(200).json({ message: 'Files uploaded successfully', results: uploadResults });
-//     } catch (error) {
-//         console.error('Error uploading files:', error);
-//         res.status(500).json({ message: 'File upload failed' });
-//     }
-// };
-
-
-
-
-
-
-
-
-
 // ALL FUNCTIONS
 const updateProfile = async (req, res) => {
     let profile = '';
@@ -449,7 +408,6 @@ const updateProfile = async (req, res) => {
     const updateValues = [...Object.values(updateData), req.user.id];
 
     db.query(updateQuery, updateValues, (error, result) => {
-        console.log(updateQuery, updateValues); // Logging the query and values for debugging
         if (error) {
             console.error('Error occurred while updating user:', error);
             return res.status(500).send({ success: false, message: 'Database error.' });
@@ -512,6 +470,16 @@ function checkTypePermission(userType, addingType) {
     return true;
 }
 async function insertUser(req, res) {
+    if (!req.file) {
+        try {
+            const a = await uploadtocloudinary(req, res);
+            console.log("a=", a);
+        } catch (error) {
+            console.error("Error occurred while uploading to cloudinary:", error);
+            return res.status(500).send({ success: false, message: "Error uploading to cloudinary." });
+        }
+    }
+
     try {
         const lowerType = req.body.type.toLowerCase();
 
@@ -524,6 +492,7 @@ async function insertUser(req, res) {
         }
 
         const hashPassword = await bcrypt.hash(req.body.password, 10);
+        req.body.text_password = req.body.password;
         req.body.password = hashPassword;
         const insertUserQuery = `INSERT INTO tbl_users (created_by, ${Object.keys(req.body).join(", ")}) VALUES (?, ${Array(Object.keys(req.body).length).fill("?").join(", ")})`;
         const insertUserValues = [req.user.id, ...Object.values(req.body)];
@@ -553,6 +522,34 @@ async function insertUser(req, res) {
     }
 }
 
+async function uploadtocloudinary(req, res) {
+    const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA'];
+    const uploadResults = {};
+
+    // Check if any files are uploaded
+    const noFilesUploaded = allowedFields.every(field => !req.files[field]);
+    if (noFilesUploaded) {
+        console.log("No files uploaded.");
+        return "no files found";
+    }
+
+    try {
+        for (const field of allowedFields) {
+            if (req.files[field]) {
+                const filePath = req.files[field][0].path;
+                console.log(`Uploading ${field} from path ${filePath}`);
+                uploadResults[field] = await UploadOnCLoudinary(filePath);
+                console.log(`Uploaded ${field}: `, uploadResults[field]);
+            }
+        }
+
+        return uploadResults;
+    } catch (error) {
+        console.error("Error occurred during file upload to Cloudinary:", error);
+        return false;
+    }
+}
+
 async function createNewTable(tableName) {
     return new Promise((resolve, reject) => {
         // Ensure the table name is sanitized
@@ -570,7 +567,6 @@ async function createNewTable(tableName) {
 }
 
 async function getUserCount(id, type, loggedInUserType) {
-    console.log(loggedInUserType);
     let query = "";
     let queryParams = [];
 
