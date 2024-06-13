@@ -211,6 +211,7 @@ export const getAgents = async (req, res) => {
                 const { password, ...sanitizedUser } = user;
                 return sanitizedUser;
             });
+
             return res.status(200).send({
                 success: true,
                 message: "Agents fetched",
@@ -330,8 +331,8 @@ export const getUserProfile = async (req, res, next) => {
             userData.nbfc = await getUserCount(req.body.userId, 'nbfc', req.user.type);
             userData.agent = await getUserCount(req.body.userId, 'agency', req.user.type);
             userData.employee = await getUserCount(req.body.userId, 'employee', req.user.type);
-            // const profileFullPath = `uploads/profile/${userData.profile}`;
-            // userData.fullPath = profileFullPath;
+            userData.doc = await getAllDocByUserId(req.body.userId);
+
 
             return res.status(200).send({
                 success: true,
@@ -350,7 +351,7 @@ export const getUserProfile = async (req, res, next) => {
 };
 export const testing = async (req, res, next) => {
 
-    const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA'];
+    const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA', 'COI', 'GSTCertificate', 'Empannelment', 'SignedAgreement'];
     const uploadResults = {};
 
     // Check if any files are uploaded
@@ -470,10 +471,39 @@ function checkTypePermission(userType, addingType) {
     return true;
 }
 async function insertUser(req, res) {
+    let uploadedDoc = {};
     if (!req.file) {
         try {
-            const a = await uploadtocloudinary(req, res);
-            console.log("a=", a);
+            if (req.user.type === "agency") {
+
+                if (!('Pan' in req.files) || !('Adhaar' in req.files)) {
+                    for (const key in req.files) {
+                        fs.unlink(`uploads/profile/${req.files[key][0].filename}`, (err) => {
+                            if (err) throw err;
+                        });
+
+                    }
+
+                    return res.status(400).send({ success: false, message: "Mandatory Documents are missing" });
+                }
+            } else if (req.user.type === "nbfc") {
+                if (!('Pan' in req.files) || !('COI' in req.files) || !('GSTCertificate' in req.files) || !('Empannelment' in req.files) || !('SignedAgreement' in req.files)) {
+                    for (const key in req.files) {
+                        fs.unlink(`uploads/profile/${req.files[key][0].filename}`, (err) => {
+                            if (err) throw err;
+                        });
+
+                    }
+
+                    return res.status(400).send({ success: false, message: "Mandatory Documents are missing" });
+                }
+            }
+
+
+            uploadedDoc = await uploadtocloudinary(req, res);
+
+
+
         } catch (error) {
             console.error("Error occurred while uploading to cloudinary:", error);
             return res.status(500).send({ success: false, message: "Error uploading to cloudinary." });
@@ -497,14 +527,34 @@ async function insertUser(req, res) {
         const insertUserQuery = `INSERT INTO tbl_users (created_by, ${Object.keys(req.body).join(", ")}) VALUES (?, ${Array(Object.keys(req.body).length).fill("?").join(", ")})`;
         const insertUserValues = [req.user.id, ...Object.values(req.body)];
 
+
         db.query(insertUserQuery, insertUserValues, async (error, result) => {
             if (error) {
                 console.error("Error occurred while inserting user into the database:", error);
                 return res.status(500).send({ success: false, message: "Database error." });
             }
+            const insertedId = result.insertId;
+            if (Object.keys(uploadedDoc).length !== 0) {
+                for (const key in uploadedDoc) {
+                    if (uploadedDoc.hasOwnProperty(key)) {
+                        console.log(`${key}: ${uploadedDoc[key]}`);
+                        let docquery = `insert into tbl_documents (userId,document_name,url,created_by) values (?,?,?,?)`;
+                        db.query(docquery, [insertedId, key, uploadedDoc[key], req.user.id], async (error, result) => {
+                            console.log(docquery, [insertedId, key, uploadedDoc[key], req.user.id])
+                            if (error) {
+                                console.error("Error occurred while inserting cloudinary url into the database:", error);
+                                return res.status(500).send({ success: false, message: "Database error." });
+                            }
+
+                        })
+                    }
+                }
+            }
+
+
 
             if (lowerType === "nbfc") {
-                const insertedId = result.insertId;
+
 
                 try {
                     await createNewTable(`tbl_master${insertedId}`);
@@ -523,7 +573,7 @@ async function insertUser(req, res) {
 }
 
 async function uploadtocloudinary(req, res) {
-    const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA'];
+    const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA', 'COI', 'GSTCertificate', 'Empannelment', 'SignedAgreement'];
     const uploadResults = {};
 
     // Check if any files are uploaded
@@ -584,6 +634,20 @@ async function getUserCount(id, type, loggedInUserType) {
                 reject(error);
             } else {
                 resolve(result.length ? result[0] : null);
+            }
+        });
+    });
+}
+
+async function getAllDocByUserId(id) {
+    const query = "SELECT * FROM tbl_documents WHERE userId = ?";
+    return new Promise((resolve, reject) => {
+        db.query(query, [id], (error, result) => {
+            if (error) {
+                reject(error);
+            } else {
+
+                resolve(result.length ? result : null);
             }
         });
     });

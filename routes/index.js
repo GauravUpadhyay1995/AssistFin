@@ -9,6 +9,10 @@ const cpUpload1 = upload.fields([
     { name: 'Adhaar', maxCount: 1 },
     { name: 'PoliceVerification', maxCount: 1 },
     { name: 'DRA', maxCount: 1 },
+    { name: 'COI', maxCount: 1 },
+    { name: 'GSTCertificate', maxCount: 1 },
+    { name: 'Empannelment', maxCount: 1 },
+    { name: 'SignedAgreement', maxCount: 1 },
 ])
 
 const route = express.Router();
