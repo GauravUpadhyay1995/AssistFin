@@ -2,19 +2,274 @@ import bcrypt from "bcrypt";
 import db from "../config/db.js";
 import userTypes from "./userTypes.js";
 import NBFCcolumns from "./masterColumns.js";
-// import express from 'express';
-// import path from 'path';
+
 
 import jwt from "jsonwebtoken";
 import Joi from "joi";
 import fs from "fs";
+import { format } from 'date-fns';
 import { UploadOnCLoudinary } from '../utils/cloudinary.js';
 
+const changeDateFormate = async (getDAte) => {
+    const dob = new Date(getDAte);
+    return  format(dob, 'yyyy-MM-dd');
+}
 
-export const userRegister = async (req, res, next) => {
+export const addAgencyEmployee = async (req, res, next) => {
+    try {
+        console.log(req.body)
+
+        const updateSchema = Joi.object({
+            nbfc_name: Joi.string().min(2).max(50).required(),
+            email: Joi.string().email().required(),
+            password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
+            employeeID: Joi.string().min(2).max(50).required(),
+            mobile: Joi.number().required(),
+            dob: Joi.date().required(),
+            type: Joi.string().min(4).required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+
+            if (errorType == "string.pattern.base") {
+                return res.status(400).json({ success: false, message: `Password must have atleast one capital letter, one small letter,one numreic,one special char,min 8 char and max 16 char.`, errorType: errorType });
+
+            }
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+        const changedDb = await changeDateFormate(req.body.dob);
+        req.body.dob = changedDb;
+
+        const existingUserQuery = "SELECT email FROM tbl_users WHERE email = ?";
+        db.query(existingUserQuery, [req.body.email], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            if (result.length) {
+                return res.status(409).send({ success: false, message: "User Already Exists" });
+            }
+
+            try {
+
+                await insertUser(req, res);
+            } catch (hashError) {
+                console.error("Error occurred while hashing password:", hashError);
+                return res.status(500).send({ success: false, message: "Error occurred while hashing password." });
+            }
+        });
+    } catch (error) {
+        console.error("Error occurred while fetching data:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+};
+export const addNbfcEmployee = async (req, res, next) => {
     try {
 
         const updateSchema = Joi.object({
+            nbfc_name: Joi.string().min(2).max(50).required(),
+            email: Joi.string().email().required(),
+            password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
+            type: Joi.string().min(4).required(),
+            // Add validation for other fields you want to update
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+
+            if (errorType == "string.pattern.base") {
+                return res.status(400).json({ success: false, message: `Password must have atleast one capital letter, one small letter,one numreic,one special char,min 8 char and max 16 char.`, errorType: errorType });
+
+            }
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+
+
+        const existingUserQuery = "SELECT email FROM tbl_users WHERE email = ?";
+        db.query(existingUserQuery, [req.body.email], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            if (result.length) {
+                return res.status(409).send({ success: false, message: "User Already Exists" });
+            }
+
+            try {
+
+                db.beginTransaction(async function (err) {
+                    if (err) {
+                        console.error("Error beginning transaction:", err);
+                        return res.status(500).send({ success: false, message: "Database error." });
+                    }
+
+                    try {
+                        // Insert user
+                        req.body.branch = req.user.branch;
+                        const hashPassword = await bcrypt.hash(req.body.password, 10);
+                        req.body.text_password = req.body.password;
+                        req.body.password = hashPassword;
+
+                        const fields = Object.keys(req.body).join(", ");
+                        const placeholders = Array(Object.keys(req.body).length).fill("?").join(", ");
+                        const insertUserQuery = `INSERT INTO tbl_users (created_by, ${fields}) VALUES (?, ${placeholders})`;
+                        const insertUserValues = [req.user.id, ...Object.values(req.body)];
+                        const userInsertResult = await executeQuery(insertUserQuery, insertUserValues);
+                        db.commit(function (err) {
+                            if (err) {
+                                console.error("Error committing transaction:", err);
+                                return res.status(500).send({ success: false, message: "Database error." });
+                            }
+                            return res.status(200).send({ success: true, message: "User Registered Successfully" });
+                        });
+                    } catch (error) {
+                        // Rollback transaction if any error occurs
+                        db.rollback(function () {
+                            console.error("Error occurred in transaction:", error);
+                            return res.status(500).send({ success: false, message: "Database error." });
+                        });
+                    }
+                });
+            } catch (hashError) {
+                console.error("Error occurred while hashing password:", hashError);
+                return res.status(500).send({ success: false, message: "Error occurred while hashing password." });
+            }
+        });
+    } catch (error) {
+        console.error("Error occurred while fetching data:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+};
+export const addSuperAdminEmployee = async (req, res, next) => {
+    try {
+
+        const updateSchema = Joi.object({
+            nbfc_name: Joi.string().min(2).max(50).required(),
+            email: Joi.string().email().required(),
+            password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
+            type: Joi.string().min(4).required(),
+            // Add validation for other fields you want to update
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+
+            if (errorType == "string.pattern.base") {
+                return res.status(400).json({ success: false, message: `Password must have atleast one capital letter, one small letter,one numreic,one special char,min 8 char and max 16 char.`, errorType: errorType });
+
+            }
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+
+
+        const existingUserQuery = "SELECT email FROM tbl_users WHERE email = ?";
+        db.query(existingUserQuery, [req.body.email], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            if (result.length) {
+                return res.status(409).send({ success: false, message: "User Already Exists" });
+            }
+
+            try {
+
+                await insertUser(req, res);
+            } catch (hashError) {
+                console.error("Error occurred while hashing password:", hashError);
+                return res.status(500).send({ success: false, message: "Error occurred while hashing password." });
+            }
+        });
+    } catch (error) {
+        console.error("Error occurred while fetching data:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+};
+export const addAgency = async (req, res, next) => {
+    try {
+
+        const updateSchema = Joi.object({
+            nbfc_name: Joi.string().min(2).max(50).required(),
+            email: Joi.string().email().required(),
+            incorporation_date: Joi.string().required(),
+            registration_number: Joi.string().required(),
+            gst_number: Joi.string().required(),
+            license_number: Joi.string().required(),
+            nbfc_type: Joi.string().required(),
+            mobile: Joi.number().required(),
+            registered_address: Joi.string().required(),
+            office_address: Joi.string().allow('').required(),
+            website: Joi.string().min(6).allow('').optional(),
+            fax_number: Joi.string().min(4).allow('').optional(),
+            ceo: Joi.string().min(2).allow('').optional(),
+            cfo: Joi.string().min(2).allow('').optional(),
+            compliance_officer: Joi.string().min(2).allow('').optional(),
+            number_of_office: Joi.number().min(1).allow('').optional(),
+            language_covered: Joi.string().min(4).allow('').optional(),
+            key_service: Joi.string().min(2).allow('').optional(),
+            clientele: Joi.string().min(2).allow('').optional(),
+            password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
+            type: Joi.string().min(4).required(),
+            PoolState: Joi.string().required(),
+            PoolZone: Joi.string().required(),
+            PoolBucket: Joi.string().required(),
+            PoolProduct: Joi.string().required(),            // Add validation for other fields you want to update
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+
+            if (errorType == "string.pattern.base") {
+                return res.status(400).json({ success: false, message: `Password must have atleast one capital letter, one small letter,one numreic,one special char,min 8 char and max 16 char.`, errorType: errorType });
+
+            }
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+        const changedDb = await changeDateFormate(req.body.incorporation_date);
+        req.body.incorporation_date = changedDb;
+
+        const existingUserQuery = "SELECT email FROM tbl_users WHERE email = ?";
+        db.query(existingUserQuery, [req.body.email], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            if (result.length) {
+                return res.status(409).send({ success: false, message: "User Already Exists" });
+            }
+
+            try {
+
+                await insertUser(req, res);
+            } catch (hashError) {
+                console.error("Error occurred while hashing password:", hashError);
+                return res.status(500).send({ success: false, message: "Error occurred while hashing password." });
+            }
+        });
+    } catch (error) {
+        console.error("Error occurred while fetching data:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+};
+export const addNbfc = async (req, res, next) => {
+    try {
+        req.body.branch = 1;
+
+        const updateSchema = Joi.object({
+            branch: Joi.number().required(),
             nbfc_name: Joi.string().min(2).max(50).required(),
             email: Joi.string().email().required(),
             incorporation_date: Joi.date().required(),
@@ -36,7 +291,6 @@ export const userRegister = async (req, res, next) => {
             clientele: Joi.string().min(2).allow('').optional(),
             password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
             type: Joi.string().min(4).required(),
-            // Add validation for other fields you want to update
         });
 
         const { error } = updateSchema.validate(req.body);
@@ -52,7 +306,8 @@ export const userRegister = async (req, res, next) => {
         }
 
 
-
+        const changedDb = await changeDateFormate(req.body.incorporation_date);
+        req.body.incorporation_date = changedDb;
         const existingUserQuery = "SELECT email FROM tbl_users WHERE email = ?";
         db.query(existingUserQuery, [req.body.email], async (error, result) => {
             if (error) {
@@ -97,7 +352,7 @@ export const userLogin = async (req, res, next) => {
         }
 
         const { email, password } = req.body;
-        const userQuery = "SELECT isActive,nbfc_name,id, password, email,profile,type FROM tbl_users WHERE email = ?";
+        const userQuery = "SELECT branch,isActive,nbfc_name,id, password, email,profile,type FROM tbl_users WHERE email = ?";
         db.query(userQuery, [email], async (error, result) => {
             if (error) {
                 console.error("Error occurred while querying the database:", error);
@@ -119,7 +374,7 @@ export const userLogin = async (req, res, next) => {
                 if (!passwordMatch) {
                     return res.status(401).send({ success: false, message: "Invalid Password." });
                 }
-                const token = jwt.sign({ id: user.id, nbfc_name: user.nbfc_name, email: user.email, type: user.type, profile: user.profile }, process.env.SECRET_KEY, {
+                const token = jwt.sign({ branch: user.branch, id: user.id, nbfc_name: user.nbfc_name, email: user.email, type: user.type, profile: user.profile }, process.env.SECRET_KEY, {
                     expiresIn: process.env.TOKENEXPIN
                 });
                 return res.status(200).send({ success: true, token });
@@ -180,7 +435,8 @@ export const deleteUser = async (req, res) => {
 
     }
 }
-export const getAgents = async (req, res) => {
+
+export const getAgency = async (req, res) => {
     try {
 
         const { id, type } = req.user;
@@ -188,20 +444,20 @@ export const getAgents = async (req, res) => {
         if ((type === "employee")) {
             return res.status(400).send({ success: false, message: "Cant Access Agent Module." });
         }
-        let filterQuery = "";
-        let filterType = "";
-        if (active != '' && active != undefined) {
-            filterQuery += ` and isActive=${active}`;
-        }
-        if (type === "agency") {
-            filterType = `'employee'`;
-        } else if (type === "nbfc") {
-            filterType = `'agency'`;
-        }
+        // let filterQuery = "";
+        // let filterType = "";
+        // if (active != '' && active != undefined) {
+        //     filterQuery += ` and isActive=${active}`;
+        // }
+        // if (type === "agency") {
+        //     filterType = `'employee'`;
+        // } else if (type === "nbfc") {
+        //     filterType = `'agency'`;
+        // }
 
-        const Query = `select * from tbl_users where created_by=? and type=${filterType} ${filterQuery}`;
+        const Query = `select * from tbl_users where branch=? and type='agency'`;
 
-        db.query(Query, [id], async (error, result) => {
+        db.query(Query, [req.user.branch], async (error, result) => {
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -226,26 +482,75 @@ export const getAgents = async (req, res) => {
 
     }
 }
-export const getEmployees = async (req, res) => {
+export const getAgencyEmployees = async (req, res) => {
     try {
-        const { id, type } = req.user;
-        let { active, agencyId } = req.body;
-        if ((type === "employee")) {
-            console.error("Cant Access Employee Level", error);
-            return res.status(400).send({ success: false, message: "Cant Access Employee Module." });
-        }
-        if (type === "agency") {
-            agencyId = id;
-        }
-        let filterQuery = "";
-        if (active != '' && active != undefined) {
-            filterQuery += ` and isActive= ${active}`;
-        }
+        // let filterQuery = "";
+        // if (active != '' && active != undefined) {
+        //     filterQuery += ` and isActive= ${active}`;
+        // }
 
 
-        const Query = `select * from tbl_users where created_by=? and type='employee' ${filterQuery}`;
+        const Query = `select * from tbl_users where created_by=? and type='employee'`;
 
-        db.query(Query, [agencyId], async (error, result) => {
+        db.query(Query, [req.user.id], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+
+            const sanitizedResult = result.map(user => {
+                const { password, ...sanitizedUser } = user;
+                return sanitizedUser;
+            });
+            return res.status(200).send({
+                success: true,
+                message: "Employee fetched",
+                data: sanitizedResult
+            });
+        });
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
+export const getSuperAdminEmployees = async (req, res) => {
+    console.log("hello")
+    try {
+        const Query = `select * from tbl_users where branch=1 and type='super admin' and id!=? and id!=1`;
+
+        db.query(Query, [req.user.id], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+
+            const sanitizedResult = result.map(user => {
+                const { password, ...sanitizedUser } = user;
+                return sanitizedUser;
+            });
+            return res.status(200).send({
+                success: true,
+                message: "Employee fetched",
+                data: sanitizedResult
+            });
+        });
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
+export const getNbfcEmployees = async (req, res) => {
+    try {
+        const Query = `select * from tbl_users where branch=? and type='nbfc' and id!=? `;
+
+        db.query(Query, [req.user.branch, req.user.id], async (error, result) => {
+            console.log(Query, [req.user.branch, req.user.id])
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -273,7 +578,7 @@ export const getEmployees = async (req, res) => {
 export const getNBFC = async (req, res) => {
     try {
 
-        const { id, type } = req.user;
+        const { id, type, branch } = req.user;
         const { active } = req.body;
         if ((type === "employee") || (type === "agency") || (type === "nbfc")) {
             return res.status(400).send({ success: false, message: "Cant Access Agent Module." });
@@ -282,6 +587,7 @@ export const getNBFC = async (req, res) => {
         if (active != '' && active != undefined) {
             filterQuery += ` and isActive=${active}`;
         }
+        filterQuery += ` and (tbl_users.branch=tbl_users.id)`;
 
 
         const Query = `select * from tbl_users where  type='nbfc' ${filterQuery} order by date(created_date)`;
@@ -375,8 +681,205 @@ export const testing = async (req, res, next) => {
     }
 };
 
+export const getProducts = async (req, res) => {
+    try {
+        const Query = `select * from tbl_products where  branch=? order by product asc`;
 
-// ALL FUNCTIONS
+        db.query(Query, [req.user.branch], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+
+
+            return res.status(200).send({
+                success: true,
+                message: "Products fetched",
+                data: result
+            });
+        });
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
+export const deleteProduct = async (req, res) => {
+    try {
+        const updateSchema = Joi.object({
+            productId: Joi.number().min(1).required(),
+            status: Joi.number().min(0).max(1).required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+        const { productId, status } = req.body;
+
+        const deleteQuery = "update tbl_products set isActive=? where id=?";
+
+
+        db.query(deleteQuery, [status, productId], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            return res.status(200).send({
+                success: true,
+                message: `Product ${status == 1 ? "Activated" : "Dectivated"} Successfully`,
+            });
+        });
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
+export const updateProduct = async (req, res) => {
+    try {
+        const updateSchema = Joi.object({
+            productId: Joi.number().min(1).required(),
+            newName: Joi.string().required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+        const { productId, newName } = req.body;
+
+
+        const existingQuery = "select id from tbl_products  where userId=? and product=?";
+
+
+        db.query(existingQuery, [req.user.id, newName], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            if (result.length) {
+                return res.status(400).send({
+                    success: false,
+                    message: `Product Already Exist`,
+                });
+            }
+            const deleteQuery = "update tbl_products set product=? where id=?";
+
+
+            db.query(deleteQuery, [newName, productId], async (error, result) => {
+                if (error) {
+                    console.error("Error occurred while querying the database:", error);
+                    return res.status(500).send({ success: false, message: "Internal server error." });
+                }
+                return res.status(200).send({
+                    success: true,
+                    message: `Product Updated Successfully`,
+                });
+            });
+        })
+
+
+
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
+export const AddProducts = async (req, res, next) => {
+    try {
+        const products = req.body;
+        if (!Array.isArray(products) || products.length === 0) {
+            return res.status(400).send({ success: false, message: "No products provided." });
+        }
+
+        const productNames = products.map(item => item.product);
+        const uniqueProducts = [...new Set(productNames)];
+        if (uniqueProducts.length !== productNames.length) {
+            return res.status(400).send({ success: false, message: "Duplicate products found." });
+        }
+
+        const userId = req.user.id;
+        const branch = req.user.branch;
+        const querySelect = `SELECT product FROM tbl_products WHERE branch = ?`;
+        db.query(querySelect, [branch], (error, results) => {
+            if (error) {
+                console.error("Error occurred while fetching existing products:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+
+            const existingProducts = results.map(row => row.product);
+            const newProducts = uniqueProducts.filter(product => !existingProducts.includes(product));
+
+            if (newProducts.length === 0) {
+                return res.status(200).send({ success: true, message: "No new products to add." });
+            }
+
+            const values = newProducts.map(product => [product, userId, branch]);
+            const queryInsert = `INSERT INTO tbl_products (product, userId,branch) VALUES ?`;
+
+            db.query(queryInsert, [values], (error, results) => {
+                if (error) {
+                    console.error("Error occurred while adding products:", error);
+                    return res.status(500).send({ success: false, message: "Internal server error." });
+                }
+
+                return res.status(200).send({ success: true, message: "Products added successfully." });
+            });
+        });
+
+    } catch (error) {
+        console.error("Error occurred while adding products:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+};
+export const approveUser = async (req, res) => {
+    try {
+        const updateSchema = Joi.object({
+            userId: Joi.number().min(1).required(),
+            status: Joi.number().min(0).max(1).required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+        const { userId, status } = req.body;
+
+        const deleteQuery = "update tbl_users set isApproved=? where id=?";
+
+
+        db.query(deleteQuery, [status, userId], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            return res.status(200).send({
+                success: true,
+                message: `User ${status == 1 ? "Approved" : "UnApproved"} Successfully`,
+            });
+        });
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
 const updateProfile = async (req, res) => {
     let profile = '';
     if (req.files.file) {
@@ -471,106 +974,148 @@ function checkTypePermission(userType, addingType) {
     return true;
 }
 async function insertUser(req, res) {
+
     let uploadedDoc = {};
     if (!req.file) {
+
         try {
             if (req.user.type === "agency") {
-
                 if (!('Pan' in req.files) || !('Adhaar' in req.files)) {
                     for (const key in req.files) {
                         fs.unlink(`uploads/profile/${req.files[key][0].filename}`, (err) => {
                             if (err) throw err;
                         });
-
                     }
-
                     return res.status(400).send({ success: false, message: "Mandatory Documents are missing" });
                 }
+                uploadedDoc = await uploadtocloudinary(req, res);
+
             } else if (req.user.type === "nbfc") {
                 if (!('Pan' in req.files) || !('COI' in req.files) || !('GSTCertificate' in req.files) || !('Empannelment' in req.files) || !('SignedAgreement' in req.files)) {
                     for (const key in req.files) {
                         fs.unlink(`uploads/profile/${req.files[key][0].filename}`, (err) => {
                             if (err) throw err;
                         });
-
                     }
-
                     return res.status(400).send({ success: false, message: "Mandatory Documents are missing" });
                 }
+                uploadedDoc = await uploadtocloudinary(req, res);
+
             }
-
-
-            uploadedDoc = await uploadtocloudinary(req, res);
-
-
-
         } catch (error) {
             console.error("Error occurred while uploading to cloudinary:", error);
             return res.status(500).send({ success: false, message: "Error uploading to cloudinary." });
         }
+
     }
 
     try {
         const lowerType = req.body.type.toLowerCase();
-
         if (!userTypes.includes(lowerType)) {
             return res.status(400).send({ success: false, message: "Invalid User Type" });
         }
-
-        if (!checkTypePermission(req.user.type, lowerType)) {
-            return res.status(400).send({ success: false, message: "You Are Not Allowed To Add This UserType" });
-        }
+        // if (!checkTypePermission(req.user.type, lowerType)) {
+        //     return res.status(400).send({ success: false, message: "You Are Not Allowed To Add This UserType" });
+        // }
 
         const hashPassword = await bcrypt.hash(req.body.password, 10);
         req.body.text_password = req.body.password;
         req.body.password = hashPassword;
-        const insertUserQuery = `INSERT INTO tbl_users (created_by, ${Object.keys(req.body).join(", ")}) VALUES (?, ${Array(Object.keys(req.body).length).fill("?").join(", ")})`;
-        const insertUserValues = [req.user.id, ...Object.values(req.body)];
 
-
-        db.query(insertUserQuery, insertUserValues, async (error, result) => {
-            if (error) {
-                console.error("Error occurred while inserting user into the database:", error);
+        // Begin transaction
+        db.beginTransaction(async function (err) {
+            if (err) {
+                console.error("Error beginning transaction:", err);
                 return res.status(500).send({ success: false, message: "Database error." });
             }
-            const insertedId = result.insertId;
-            if (Object.keys(uploadedDoc).length !== 0) {
-                for (const key in uploadedDoc) {
-                    if (uploadedDoc.hasOwnProperty(key)) {
-                        console.log(`${key}: ${uploadedDoc[key]}`);
-                        let docquery = `insert into tbl_documents (userId,document_name,url,created_by) values (?,?,?,?)`;
-                        db.query(docquery, [insertedId, key, uploadedDoc[key], req.user.id], async (error, result) => {
-                            console.log(docquery, [insertedId, key, uploadedDoc[key], req.user.id])
-                            if (error) {
-                                console.error("Error occurred while inserting cloudinary url into the database:", error);
-                                return res.status(500).send({ success: false, message: "Database error." });
-                            }
 
-                        })
+            try {
+                // Insert user
+                req.body.branch = req.user.branch;
+
+                const { PoolState, PoolBucket, PoolZone, PoolProduct, ...userData } = req.body;
+                const fields = Object.keys(userData).join(", ");
+                const placeholders = Array(Object.keys(userData).length).fill("?").join(", ");
+                const insertUserQuery = `INSERT INTO tbl_users (created_by, ${fields}) VALUES (?, ${placeholders})`;
+                const insertUserValues = [req.user.id, ...Object.values(userData)];
+                const userInsertResult = await executeQuery(insertUserQuery, insertUserValues);
+
+                const insertedId = userInsertResult.insertId;
+                if (req.body.type === 'nbfc') {
+                    const updateUserQuery = `update tbl_users set branch=? where id=?`;
+                    const updateUserValues = [insertedId, insertedId];
+                    const userupdateResult = await executeQuery(updateUserQuery, updateUserValues);
+                }
+                // Insert documents if any
+                if (Object.keys(uploadedDoc).length !== 0) {
+                    for (const key in uploadedDoc) {
+                        if (uploadedDoc.hasOwnProperty(key)) {
+                            const docquery = `INSERT INTO tbl_documents (userId,document_name,url,created_by) VALUES (?,?,?,?)`;
+                            const docInsertResult = await executeQuery(docquery, [insertedId, key, uploadedDoc[key], req.user.id]);
+                        }
                     }
                 }
-            }
 
-
-
-            if (lowerType === "nbfc") {
-
-
-                try {
+                // Create table if user type is nbfc
+                if (lowerType === "nbfc") {
                     await createNewTable(`tbl_master${insertedId}`);
-                } catch (createTableError) {
-                    console.error("Error occurred while creating new table:", createTableError);
-                    return res.status(500).send({ success: false, message: "Error creating table for NBFC." });
                 }
-            }
 
-            return res.status(200).send({ success: true, message: "User Registered Successfully" });
+                // Insert pool allocations if user type is nbfc
+                if (req.user.type === "nbfc") {
+                    const existingQuery = `select id from tbl_pool_allocations where userId=?`;
+                    const isExist = await executeQuery(existingQuery, [insertedId]);
+                    if (isExist) {
+                        const deleteQuery = `delete  from tbl_pool_allocations where userId=?`;
+                        const isExist = await executeQuery(deleteQuery, [insertedId]);
+
+                    }
+
+
+
+                    const poolQuery = `INSERT INTO tbl_pool_allocations (userId,state,zone,bucket,product,created_by) VALUES (?,?,?,?,?,?)`;
+                    const productJson = JSON.stringify(PoolProduct);
+                    const zoneJson = JSON.stringify(PoolZone);
+                    const bucketJson = JSON.stringify(PoolBucket);
+                    const stateJson = JSON.stringify(PoolState);
+                    await executeQuery(poolQuery, [insertedId, stateJson, zoneJson, bucketJson, productJson, req.user.id]);
+                }
+
+                // Commit transaction
+                db.commit(function (err) {
+                    if (err) {
+                        console.error("Error committing transaction:", err);
+                        return res.status(500).send({ success: false, message: "Database error." });
+                    }
+                    return res.status(200).send({ success: true, message: "User Registered Successfully" });
+                });
+            } catch (error) {
+                // Rollback transaction if any error occurs
+                db.rollback(function () {
+                    console.error("Error occurred in transaction:", error);
+                    return res.status(500).send({ success: false, message: "Database error." });
+                });
+            }
         });
+
     } catch (error) {
         console.error("Error occurred while processing the request:", error);
         return res.status(500).send({ success: false, message: "Internal server error." });
     }
 }
+
+// Function to execute query
+function executeQuery(query, values) {
+    return new Promise((resolve, reject) => {
+        db.query(query, values, (error, result) => {
+            if (error) {
+                return reject(error);
+            }
+            resolve(result);
+        });
+    });
+}
+
 
 async function uploadtocloudinary(req, res) {
     const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA', 'COI', 'GSTCertificate', 'Empannelment', 'SignedAgreement'];
