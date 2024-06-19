@@ -359,7 +359,7 @@ export const getResolvedPercentageData = async (req, res, next) => {
                 });
                 return acc;
             }, {});
-            
+
             // Transform the grouped data into the desired format
             const transformedData = Object.keys(groupedData).map(state => ({
                 newdata: {

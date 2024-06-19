@@ -12,7 +12,7 @@ import { UploadOnCLoudinary } from '../utils/cloudinary.js';
 
 const changeDateFormate = async (getDAte) => {
     const dob = new Date(getDAte);
-    return  format(dob, 'yyyy-MM-dd');
+    return format(dob, 'yyyy-MM-dd');
 }
 
 export const addAgencyEmployee = async (req, res, next) => {
@@ -198,6 +198,9 @@ export const addSuperAdminEmployee = async (req, res, next) => {
 export const addAgency = async (req, res, next) => {
     try {
 
+
+
+
         const updateSchema = Joi.object({
             nbfc_name: Joi.string().min(2).max(50).required(),
             email: Joi.string().email().required(),
@@ -237,6 +240,7 @@ export const addAgency = async (req, res, next) => {
             }
             return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
         }
+
 
         const changedDb = await changeDateFormate(req.body.incorporation_date);
         req.body.incorporation_date = changedDb;
@@ -880,6 +884,234 @@ export const approveUser = async (req, res) => {
 
     }
 }
+export const getCustomerDetails = async (req, res) => {
+    try {
+
+        const checkSQL = ` SELECT id FROM tbl_waiver_requests WHERE loanId = ? and isApproved=2`;
+        db.query(checkSQL, [req.body.LoanId], (error, result) => {
+            console.log(checkSQL, [req.body.LoanId])
+            if (error) {
+                console.error('Error occurred while updating user:', error);
+                return res.status(500).send({ success: false, message: 'Database error.' });
+            }
+            if (result.length) {
+                return res.status(200).send({ success: false, message: 'Waiver Already in pending.', data: '' });
+            }
+
+
+            const SQL = ` SELECT * FROM tbl_master${req.user.branch} WHERE id = (SELECT MAX(id) FROM tbl_master59 WHERE loan_id = ?)`;
+            db.query(SQL, [req.body.LoanId], (error, result) => {
+                if (error) {
+                    console.error('Error occurred while updating user:', error);
+                    return res.status(500).send({ success: false, message: 'Database error.' });
+                }
+                if (result.length) {
+                    return res.status(200).send({ success: true, message: 'Customer Details Matched.', data: result });
+
+                }
+                return res.status(200).send({ success: false, message: 'Customer Not Found.', data: result });
+
+            });
+
+        });
+
+
+
+    } catch (error) {
+
+    }
+
+}
+
+export const addWaiverRequest = async (req, res, next) => {
+    try {
+        const updateSchema = Joi.object({
+            LoanId: Joi.string().min(2).max(50).required(),
+            principalAmt: Joi.number().precision(2).required(),
+            penalAmt: Joi.number().precision(2).required(),
+            intrestAmt: Joi.number().precision(2).required(),
+            principalPercentage: Joi.number().precision(2).required(),
+            penalPercentage: Joi.number().precision(2).required(),
+            intrestPercentage: Joi.number().precision(2).required(),
+            totalAmt: Joi.number().precision(2).required(),
+
+
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+
+        const queryInsert = `INSERT INTO tbl_waiver_requests (agency_branch,loanId,principal_amt,principal_percentage,penal_amt,penal_percentage,intrest_amt,intrest_percentage,total_amt,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)`;
+
+        db.query(queryInsert, [req.user.branch, req.body.LoanId, req.body.principalAmt, req.body.principalPercentage, req.body.penalAmt, req.body.penalPercentage, req.body.intrestAmt, req.body.intrestPercentage, req.body.totalAmt, req.user.id], (error, results) => {
+            if (error) {
+                console.error("Error occurred while adding Waiver:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+
+            return res.status(200).send({ success: true, message: "Waiver requested successfully." });
+        });
+
+    } catch (error) {
+
+    }
+
+}
+export const waiverList = async (req, res, next) => {
+    try {
+        const Query = `SELECT tbl_waiver_requests.*, 
+                              tbl_users.nbfc_name, 
+                              DATE_FORMAT(tbl_waiver_requests.created_date, '%d-%m-%Y %h:%i:%s %p') as formatted_created_date , 
+                              DATE_FORMAT(tbl_waiver_requests.approval_date, '%d-%m-%Y %h:%i:%s %p') as formatted_approved_date 
+                       FROM tbl_waiver_requests 
+                       INNER JOIN tbl_users ON tbl_waiver_requests.created_by = tbl_users.id 
+                       AND tbl_users.branch = ? and tbl_waiver_requests.isActive=1 and tbl_waiver_requests.created_by=? `;
+        db.query(Query, [req.user.branch, req.user.id], async (error, result) => {
+            console.log(Query, [req.user.id])
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "Waiver Request fetched",
+                data: result
+            });
+        });
+
+    } catch (error) {
+        console.error("Error in waiverList function:", error); // Add error logging
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+}
+export const deleteWaiverRequest = async (req, res, next) => {
+    try {
+        const updateSchema = Joi.object({
+            id: Joi.number().min(1).required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+
+        const deleteQuery = "update tbl_waiver_requests set isActive=0,updated_by=? where id=?";
+
+
+        db.query(deleteQuery, [req.user.id, req.body.id], async (error, result) => {
+            console.log(deleteQuery, [req.user.id, req.body.id])
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            return res.status(200).send({
+                success: true,
+                message: `Request Deleted Successfully`,
+            });
+        });
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
+
+export const nbfcWaiverList = async (req, res, next) => {
+    try {
+        const Query = `SELECT tbl_waiver_requests.*,tbl_users.nbfc_name, DATE_FORMAT(tbl_waiver_requests.created_date, '%d-%m-%Y %h:%i:%s %p') as formatted_created_date ,  DATE_FORMAT(tbl_waiver_requests.approval_date, '%d-%m-%Y %h:%i:%s %p') as formatted_approved_date FROM tbl_waiver_requests 
+                       INNER JOIN tbl_users ON tbl_waiver_requests.created_by = tbl_users.id 
+                       AND tbl_users.branch =? and tbl_waiver_requests.isActive=1;`;
+        db.query(Query, [req.user.branch], async (error, result) => {
+
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "Waiver Request fetched",
+                data: result
+            });
+        });
+
+    } catch (error) {
+        console.error("Error in waiverList function:", error); // Add error logging
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+}
+export const waiverDetails = async (req, res, next) => {
+    try {
+        const sql = `SELECT wr.*, m.dob, m.age, m.phone_number, m.last_emi_date, m.date_of_last_payment  FROM tbl_waiver_requests wr INNER JOIN tbl_master${req.user.branch} m ON wr.loanId = m.loan_id AND wr.isApproved = 2 AND wr.agency_branch = ${req.user.branch} AND wr.isActive = 1 AND m.id = (SELECT MAX(id) FROM tbl_master${req.user.branch} WHERE loan_id = ?) WHERE wr.loanId = ?`;
+        db.query(sql, [req.body.id, req.body.id], async (error, result) => {
+            console.log(sql, [req.body.id, req.user.id])
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            console.log(result)
+            if (!result.length) {
+                return res.status(200).send({
+                    success: false,
+                    message: "Waiver Request Not Found",
+                    data: result
+                });
+            }
+            return res.status(200).send({
+                success: true,
+                message: "Waiver Request fetched",
+                data: result
+            });
+
+        });
+
+    } catch (error) {
+
+    }
+}
+export const approvedWaivers = async (req, res, next) => {
+    try {
+        const updateSchema = Joi.object({
+            approved_principal: Joi.number().min(1).required(),
+            approved_penal: Joi.number().min(1).required(),
+            approved_intrest: Joi.number().min(1).required(),
+            reason: Joi.string().min(3).required(),
+            isApproved: Joi.number().min(0).required(),
+            waiver_id: Joi.number().min(1).required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+        const SQL = `update tbl_waiver_requests set isApproved=?,approved_principal=?,approved_penal=?,approved_intrest=?,updated_by=?,reason=?,approved_by=? where id =?`;
+        db.query(SQL, [req.body.isApproved, req.body.approved_principal, req.body.approved_penal, req.body.approved_intrest, req.user.id, req.body.reason, req.user.id, req.body.waiver_id], async (error, result) => {
+
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            return res.status(200).send({ success: true, message: "Waiver Approved" });
+        });
+
+    } catch (error) {
+
+    }
+}
+
 const updateProfile = async (req, res) => {
     let profile = '';
     if (req.files.file) {

@@ -48,10 +48,14 @@ route.post("/getProducts", [authMiddleware], userController.getProducts);
 route.post("/deleteProduct", [authMiddleware], userController.deleteProduct);
 route.post("/updateProduct", [authMiddleware], userController.updateProduct);
 route.post("/approveUser", [authMiddleware], userController.approveUser);
+route.post("/getCustomerDetails", [authMiddleware], userController.getCustomerDetails);
+route.post("/addWaiverRequest", [authMiddleware], userController.addWaiverRequest);
+route.post("/waiverList", [authMiddleware], userController.waiverList);
+route.post("/deleteWaiverRequest", [authMiddleware], userController.deleteWaiverRequest);
+route.post("/nbfcWaiverList", [authMiddleware], userController.nbfcWaiverList);
+route.post("/waiverDetails", [authMiddleware], userController.waiverDetails);
 
-
-
-
+route.post("/approvedWaivers", [authMiddleware], userController.approvedWaivers);
 
 
 export default route;
