@@ -333,12 +333,10 @@ export const addNbfc = async (req, res, next) => {
 };
 export const userLogin = async (req, res, next) => {
     try {
-
         const updateSchema = Joi.object({
             email: Joi.string().email().required(),
             password: Joi.string().required(),
         });
-
         const { error } = updateSchema.validate(req.body);
         if (error) {
             const errorMessage = error.details.map(detail => detail.message).join(", ");
@@ -350,9 +348,8 @@ export const userLogin = async (req, res, next) => {
             }
             return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
         }
-
         const { email, password } = req.body;
-        const userQuery = "SELECT isAgency,branch,isActive,nbfc_name,id, password, email,profile,type FROM tbl_users WHERE email = ?";
+        const userQuery = "SELECT isApproved,isAgency,branch,isActive,nbfc_name,id, password, email,profile,type FROM tbl_users WHERE email = ?";
         db.query(userQuery, [email], async (error, result) => {
             if (error) {
                 console.error("Error occurred while querying the database:", error);
@@ -367,7 +364,11 @@ export const userLogin = async (req, res, next) => {
             //     return res.status(400).send({ success: false, message: "You are not allowed to loggedIn here" });
             // }
             if (!user.isActive) {
-                return res.status(400).send({ success: false, message: "User Not Active" });
+                return res.status(400).send({ success: false, message: "Your account has been suspended" });
+            }
+            console.log(user.isApproved)
+            if (!user.isApproved) {
+                return res.status(400).send({ success: false, message: "Your account is not approved yet." });
             }
             try {
                 const passwordMatch = await bcrypt.compare(password, user.password);
@@ -878,43 +879,7 @@ export const approveUser = async (req, res) => {
 
     }
 }
-export const getCustomerDetails = async (req, res) => {
-    try {
 
-        const checkSQL = ` SELECT id FROM tbl_waiver_requests WHERE loanId = ? and isApproved=2`;
-        db.query(checkSQL, [req.body.LoanId], (error, result) => {
-            if (error) {
-                console.error('Error occurred while updating user:', error);
-                return res.status(500).send({ success: false, message: 'Database error.' });
-            }
-            if (result.length) {
-                return res.status(200).send({ success: false, message: 'Waiver Already in pending.', data: '' });
-            }
-
-
-            const SQL = ` SELECT * FROM tbl_master${req.user.branch} WHERE id = (SELECT MAX(id) FROM tbl_master59 WHERE loan_id = ?)`;
-            db.query(SQL, [req.body.LoanId], (error, result) => {
-                if (error) {
-                    console.error('Error occurred while updating user:', error);
-                    return res.status(500).send({ success: false, message: 'Database error.' });
-                }
-                if (result.length) {
-                    return res.status(200).send({ success: true, message: 'Customer Details Matched.', data: result });
-
-                }
-                return res.status(200).send({ success: false, message: 'Customer Not Found.', data: result });
-
-            });
-
-        });
-
-
-
-    } catch (error) {
-
-    }
-
-}
 
 export const addWaiverRequest = async (req, res, next) => {
     try {
@@ -956,6 +921,38 @@ export const addWaiverRequest = async (req, res, next) => {
 
 }
 
+export const getCustomerDetails = async (req, res) => {
+    try {
+        const checkSQL = `SELECT id FROM tbl_waiver_requests WHERE loanId = ? and isApproved=2`;
+        db.query(checkSQL, [req.body.LoanId], async (error, result) => {
+            if (error) {
+                console.error('Error occurred while checking waiver requests:', error);
+                return res.status(500).send({ success: false, message: 'Database error.' });
+            }
+            if (result.length) {
+                return res.status(200).send({ success: false, message: 'Waiver already in pending.', data: '' });
+            }
+
+            const SQL = `SELECT * FROM tbl_master${req.user.branch} WHERE id = (SELECT MAX(id) FROM tbl_master${req.user.branch} WHERE loan_id = ?)`;
+            db.query(SQL, [req.body.LoanId], async (error, result) => {
+                if (error) {
+                    console.error('Error occurred while fetching customer details:', error);
+                    return res.status(500).send({ success: false, message: 'Database error.' });
+                }
+
+                const AgencyDetails = await getUserById(req.user.isAgency);
+                if (result.length && result[0].agency_name === AgencyDetails.nbfc_name) {
+                    return res.status(200).send({ success: true, message: 'Customer Details Matched.', data: result });
+                }
+
+                return res.status(200).send({ success: false, message: 'Customer Not Found.', data: [] });
+            });
+        });
+    } catch (error) {
+        console.error('Error occurred:', error);
+        res.status(500).send({ success: false, message: 'Internal Server Error.' });
+    }
+};
 export const waiverList = async (req, res, next) => {
     try {
         const Query = `SELECT tbl_waiver_requests.*, 
@@ -1654,6 +1651,10 @@ async function getAllDocByUserId(id) {
         });
     });
 }
+
+
+
+
 
 
 

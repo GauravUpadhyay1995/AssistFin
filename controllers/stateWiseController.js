@@ -938,6 +938,7 @@ export const getAllState = async (req, res, next) => {
     try {
         let QUERY = `SELECT distinct(state) FROM tbl_master${req.user.id}  order by state asc `;
         db.query(QUERY, function (error, result) {
+            console.log(QUERY)
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ message: "Internal server error." });
