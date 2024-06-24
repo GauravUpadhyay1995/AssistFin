@@ -17,9 +17,9 @@ const changeDateFormate = async (getDAte) => {
 
 export const addAgencyEmployee = async (req, res, next) => {
     try {
-        console.log(req.body)
 
         const updateSchema = Joi.object({
+            isAgency: Joi.number().min(1).required(),
             nbfc_name: Joi.string().min(2).max(50).required(),
             email: Joi.string().email().required(),
             password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
@@ -197,10 +197,6 @@ export const addSuperAdminEmployee = async (req, res, next) => {
 };
 export const addAgency = async (req, res, next) => {
     try {
-
-
-
-
         const updateSchema = Joi.object({
             nbfc_name: Joi.string().min(2).max(50).required(),
             email: Joi.string().email().required(),
@@ -356,7 +352,7 @@ export const userLogin = async (req, res, next) => {
         }
 
         const { email, password } = req.body;
-        const userQuery = "SELECT branch,isActive,nbfc_name,id, password, email,profile,type FROM tbl_users WHERE email = ?";
+        const userQuery = "SELECT isAgency,branch,isActive,nbfc_name,id, password, email,profile,type FROM tbl_users WHERE email = ?";
         db.query(userQuery, [email], async (error, result) => {
             if (error) {
                 console.error("Error occurred while querying the database:", error);
@@ -378,7 +374,7 @@ export const userLogin = async (req, res, next) => {
                 if (!passwordMatch) {
                     return res.status(401).send({ success: false, message: "Invalid Password." });
                 }
-                const token = jwt.sign({ branch: user.branch, id: user.id, nbfc_name: user.nbfc_name, email: user.email, type: user.type, profile: user.profile }, process.env.SECRET_KEY, {
+                const token = jwt.sign({ isAgency: user.isAgency, branch: user.branch, id: user.id, nbfc_name: user.nbfc_name, email: user.email, type: user.type, profile: user.profile }, process.env.SECRET_KEY, {
                     expiresIn: process.env.TOKENEXPIN
                 });
                 return res.status(200).send({ success: true, token });
@@ -521,7 +517,6 @@ export const getAgencyEmployees = async (req, res) => {
     }
 }
 export const getSuperAdminEmployees = async (req, res) => {
-    console.log("hello")
     try {
         const Query = `select * from tbl_users where branch=1 and type='super admin' and id!=? and id!=1`;
 
@@ -554,7 +549,6 @@ export const getNbfcEmployees = async (req, res) => {
         const Query = `select * from tbl_users where branch=? and type='nbfc' and id!=? `;
 
         db.query(Query, [req.user.branch, req.user.id], async (error, result) => {
-            console.log(Query, [req.user.branch, req.user.id])
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -889,7 +883,6 @@ export const getCustomerDetails = async (req, res) => {
 
         const checkSQL = ` SELECT id FROM tbl_waiver_requests WHERE loanId = ? and isApproved=2`;
         db.query(checkSQL, [req.body.LoanId], (error, result) => {
-            console.log(checkSQL, [req.body.LoanId])
             if (error) {
                 console.error('Error occurred while updating user:', error);
                 return res.status(500).send({ success: false, message: 'Database error.' });
@@ -946,9 +939,9 @@ export const addWaiverRequest = async (req, res, next) => {
         }
 
 
-        const queryInsert = `INSERT INTO tbl_waiver_requests (agency_branch,loanId,principal_amt,principal_percentage,penal_amt,penal_percentage,intrest_amt,intrest_percentage,total_amt,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)`;
+        const queryInsert = `INSERT INTO tbl_waiver_requests (agency_id,agency_branch,loanId,principal_amt,principal_percentage,penal_amt,penal_percentage,intrest_amt,intrest_percentage,total_amt,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`;
 
-        db.query(queryInsert, [req.user.branch, req.body.LoanId, req.body.principalAmt, req.body.principalPercentage, req.body.penalAmt, req.body.penalPercentage, req.body.intrestAmt, req.body.intrestPercentage, req.body.totalAmt, req.user.id], (error, results) => {
+        db.query(queryInsert, [req.user.isAgency, req.user.branch, req.body.LoanId, req.body.principalAmt, req.body.principalPercentage, req.body.penalAmt, req.body.penalPercentage, req.body.intrestAmt, req.body.intrestPercentage, req.body.totalAmt, req.user.id], (error, results) => {
             if (error) {
                 console.error("Error occurred while adding Waiver:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -962,6 +955,7 @@ export const addWaiverRequest = async (req, res, next) => {
     }
 
 }
+
 export const waiverList = async (req, res, next) => {
     try {
         const Query = `SELECT tbl_waiver_requests.*, 
@@ -970,9 +964,9 @@ export const waiverList = async (req, res, next) => {
                               DATE_FORMAT(tbl_waiver_requests.approval_date, '%d-%m-%Y %h:%i:%s %p') as formatted_approved_date 
                        FROM tbl_waiver_requests 
                        INNER JOIN tbl_users ON tbl_waiver_requests.created_by = tbl_users.id 
-                       AND tbl_users.branch = ? and tbl_waiver_requests.isActive=1 and tbl_waiver_requests.created_by=? `;
+                       AND tbl_users.branch = ? and tbl_waiver_requests.isActive=1 and tbl_waiver_requests.agency_id=? `;
         db.query(Query, [req.user.branch, req.user.id], async (error, result) => {
-            console.log(Query, [req.user.id])
+            console.log(Query, [req.user.branch, req.user.isAgency])
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -1008,7 +1002,6 @@ export const deleteWaiverRequest = async (req, res, next) => {
 
 
         db.query(deleteQuery, [req.user.id, req.body.id], async (error, result) => {
-            console.log(deleteQuery, [req.user.id, req.body.id])
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
@@ -1030,8 +1023,8 @@ export const deleteWaiverRequest = async (req, res, next) => {
 export const nbfcWaiverList = async (req, res, next) => {
     try {
         const Query = `SELECT tbl_waiver_requests.*,tbl_users.nbfc_name, DATE_FORMAT(tbl_waiver_requests.created_date, '%d-%m-%Y %h:%i:%s %p') as formatted_created_date ,  DATE_FORMAT(tbl_waiver_requests.approval_date, '%d-%m-%Y %h:%i:%s %p') as formatted_approved_date FROM tbl_waiver_requests 
-                       INNER JOIN tbl_users ON tbl_waiver_requests.created_by = tbl_users.id 
-                       AND tbl_users.branch =? and tbl_waiver_requests.isActive=1;`;
+                       INNER JOIN tbl_users ON tbl_waiver_requests.agency_id = tbl_users.id 
+                       AND tbl_users.branch =? and tbl_waiver_requests.isActive=1`;
         db.query(Query, [req.user.branch], async (error, result) => {
 
             if (error) {
@@ -1053,14 +1046,12 @@ export const nbfcWaiverList = async (req, res, next) => {
 }
 export const waiverDetails = async (req, res, next) => {
     try {
-        const sql = `SELECT wr.*, m.dob, m.age, m.phone_number, m.last_emi_date, m.date_of_last_payment  FROM tbl_waiver_requests wr INNER JOIN tbl_master${req.user.branch} m ON wr.loanId = m.loan_id AND wr.isApproved = 2 AND wr.agency_branch = ${req.user.branch} AND wr.isActive = 1 AND m.id = (SELECT MAX(id) FROM tbl_master${req.user.branch} WHERE loan_id = ?) WHERE wr.loanId = ?`;
-        db.query(sql, [req.body.id, req.body.id], async (error, result) => {
-            console.log(sql, [req.body.id, req.user.id])
+        const sql = `SELECT wr.*,m.product_type,m.dpd_in_days,m.prin_overdue,m.overdue_int,m.penal_due,m.total_overdue, m.dob, m.age, m.phone_number, m.last_emi_date, m.date_of_last_payment  FROM tbl_waiver_requests wr INNER JOIN tbl_master${req.user.branch} m ON wr.loanId = m.loan_id AND wr.isApproved = ${req.body.isApproved} AND wr.agency_branch = ${req.user.branch} AND wr.isActive = 1 AND m.id = (SELECT MAX(id) FROM tbl_master${req.user.branch} WHERE loan_id = ?) WHERE wr.id = ?`;
+        db.query(sql, [req.body.loanId, req.body.id], async (error, result) => {
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ success: false, message: "Internal server error." });
             }
-            console.log(result)
             if (!result.length) {
                 return res.status(200).send({
                     success: false,
@@ -1068,6 +1059,17 @@ export const waiverDetails = async (req, res, next) => {
                     data: result
                 });
             }
+
+
+            const CreationData = await getUserById(result[0].agency_id)
+            const PoolData = await getPoolDetailsByAgencyId(result[0].agency_id)
+            result[0]['agencyDetails'] = CreationData;
+            result[0]['PoolData'] = PoolData;
+            // console.log(CreationData)
+            const WaiverRuleData = await getWaiverRuleCriteria(result[0].product_type, req.user.branch, result[0].dpd_in_days, CreationData.id)
+
+            result[0]['WaiverRuleData'] = WaiverRuleData;
+
             return res.status(200).send({
                 success: true,
                 message: "Waiver Request fetched",
@@ -1080,6 +1082,8 @@ export const waiverDetails = async (req, res, next) => {
 
     }
 }
+
+// function getAgency
 export const approvedWaivers = async (req, res, next) => {
     try {
         const updateSchema = Joi.object({
@@ -1108,9 +1112,171 @@ export const approvedWaivers = async (req, res, next) => {
         });
 
     } catch (error) {
+        console.error("Error in waiverList function:", error); // Add error logging
+        return res.status(500).send({ success: false, message: "Internal server error." });
 
     }
 }
+export const approveWaiver = async (req, res, next) => {
+    try {
+        const updateSchema = Joi.object({
+            waiverId: Joi.number().min(1).required(),
+            reason: Joi.string().max(100).required(),
+            updatedIntrest: Joi.number().min(0).required(),
+            updatedPenal: Joi.number().min(0).required(),
+            updatedPrincipal: Joi.number().min(0).required(),
+            isApproved: Joi.number().min(0).max(1).required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+        const sql = `UPDATE tbl_waiver_requests SET waiver_rule_id=?, approved_by=?, reason=?, isApproved=?, approved_principal=?, approved_penal=?, approved_intrest=? where id=?`;
+        db.query(sql, [req.body.waiverId, req.user.id, req.body.reason, req.body.isApproved, req.body.updatedPrincipal, req.body.updatedPenal, req.body.updatedIntrest, req.body.waiverId], async (error, result) => {
+            console.log(sql, [req.user.id, req.body.reason, req.body.updatedPrincipal, req.body.updatedPenal, req.body.updatedIntrest, req.body.waiverId]);
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            res.status(200).send({ success: true, message: "Waiver Updated." });
+        });
+    } catch (error) {
+        console.error("Error occurred in approveWaiver function:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+}
+const JoiBase = Joi.extend((joi) => ({
+    type: 'string',
+    base: joi.string(),
+    messages: {
+        'string.dateFormat': '"{{#label}}" must be in the format YYYY-MM-DD HH:mm:ss',
+    },
+    rules: {
+        dateFormat: {
+            validate(value, helpers) {
+                // Regular expression to match the format YYYY-MM-DD HH:mm:ss
+                const regex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                if (!regex.test(value)) {
+                    return helpers.error('string.dateFormat');
+                }
+                return value; // Keep the value as it is if it matches
+            },
+        },
+    },
+}));
+export const addWaiverRule = async (req, res, next) => {
+    try {
+        const updateSchema = JoiBase.object({
+            principal: JoiBase.number().min(0).max(100).required(),
+            penal: JoiBase.number().min(0).max(100).required(),
+            interest: JoiBase.number().min(0).max(100).required(),
+            bucket: JoiBase.array().required(),
+            product: JoiBase.array().required(),
+            expiryDate: JoiBase.string().dateFormat().required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+        const values = [];
+        req.body.product.forEach(product => {
+            req.body.bucket.forEach(bucket => {
+                values.push([req.user.branch, product, bucket, req.body.penal, req.body.interest, req.body.principal, req.body.expiryDate, req.user.id]);
+            });
+        });
+
+        // Construct the SQL statement to check for existing records
+        const checkSQL = `SELECT product_id, bucket_id FROM tbl_waiver_rules WHERE branch_id = ? AND (product_id, bucket_id) IN (?)`;
+
+        // Create a set of (product_id, bucket_id) pairs for the query
+        const checkValues = [req.user.branch, values.map(value => [value[1], value[2]])];
+
+        // Execute the query to check for existing records
+        db.query(checkSQL, checkValues, (error, results) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+
+            // Filter out values that already exist
+            const existingPairs = results.map(result => `${result.product_id}-${result.bucket_id}`);
+            const filteredValues = values.filter(value => !existingPairs.includes(`${value[1]}-${value[2]}`));
+
+            if (filteredValues.length === 0) {
+                return res.status(200).send({ success: false, message: "No new waiver rules to add." });
+            }
+
+            // Construct the SQL statement with placeholders for inserting new records
+            const placeholders = filteredValues.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+            const insertSQL = `INSERT INTO tbl_waiver_rules 
+                               (branch_id, product_id, bucket_id, penal, intrest, principal, expiry_date, created_by) 
+                               VALUES ${placeholders}`;
+
+            // Flatten the filtered values array for the query
+            const flattenedValues = filteredValues.flat();
+
+            // Execute the batch insert query
+            db.query(insertSQL, flattenedValues, (error, result) => {
+                if (error) {
+                    console.error("Error occurred while querying the database:", error);
+                    return res.status(500).send({ success: false, message: "Internal server error." });
+                }
+                return res.status(200).send({ success: true, message: "Waiver Rule  Created." });
+            });
+        });
+
+    } catch (error) {
+        console.error("Error in waiverList function:", error); // Add error logging
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+};
+
+export const waiverRuleLists = async (req, res, next) => {
+    try {
+        const SQL = `SELECT 
+    tbl_waiver_rules.*,
+    DATE_FORMAT(tbl_waiver_rules.expiry_date, '%d-%m-%Y %h:%i:%s %p') as formatted_expiry_date,
+      DATE_FORMAT(tbl_waiver_rules.created_date, '%d-%m-%Y %h:%i:%s %p') as formatted_created_date,
+    tbl_products.product,
+    tbl_users.nbfc_name as created_by
+FROM 
+    tbl_waiver_rules 
+INNER JOIN 
+    tbl_products 
+    ON tbl_waiver_rules.product_id = tbl_products.id 
+INNER JOIN 
+    tbl_users 
+    ON tbl_waiver_rules.created_by = tbl_users.id
+WHERE 
+    tbl_waiver_rules.branch_id = ? 
+ORDER BY 
+    tbl_waiver_rules.product_id;
+`;
+
+        db.query(SQL, [req.user.branch], (error, results) => {
+            console.log(SQL, [req.user.branch])
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            return res.status(200).send({ success: true, message: "Fetched Lists", data: results });
+        });
+
+    } catch (error) {
+        console.error("Error in waiverRuleList function:", error); // Add error logging
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+
+}
+
+
 
 const updateProfile = async (req, res) => {
     let profile = '';
@@ -1150,6 +1316,7 @@ const updateProfile = async (req, res) => {
         }
 
         const tokenPayload = {
+            isAgency: req.user.isAgency,
             id: req.user.id,
             email: req.user.email,  // Assuming email is part of req.user
             profile: req.user.profile,  // Assuming profile is part of req.user
@@ -1177,6 +1344,57 @@ async function getUserById(id) {
         });
     });
 }
+async function getPoolDetailsByAgencyId(id) {
+    const query = "SELECT * FROM tbl_pool_allocations WHERE userId = ?";
+    return new Promise((resolve, reject) => {
+        db.query(query, [id], (error, result) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(result.length ? result[0] : null);
+            }
+        });
+    });
+}
+
+async function getWaiverRuleCriteria(ProductName, BranchId, dpdDays, agencyId) {
+    console.log(dpdDays)
+    if (dpdDays > 0 && dpdDays <= 30) {
+        dpdDays = 1;
+    } else if (dpdDays >= 31 && dpdDays <= 60) {
+        dpdDays = 2;
+    }
+    else if (dpdDays >= 61 && dpdDays <= 90) {
+        dpdDays = 3;
+    }
+    else if (dpdDays >= 91 && dpdDays <= 120) {
+        dpdDays = 4;
+    }
+    else if (dpdDays >= 121 && dpdDays <= 150) {
+        dpdDays = 5;
+    } else if (dpdDays >= 151 && dpdDays <= 180) {
+        dpdDays = 6;
+    } else if (dpdDays >= 181 && dpdDays <= 365) {
+        dpdDays = 7;
+    } else {
+        dpdDays = 8;
+    }
+
+
+    const query = `SELECT p.id,w.penal,w.intrest,w.principal,w.expiry_date FROM 
+    tbl_waiver_rules w INNER JOIN tbl_products p ON w.branch_id = p.branch WHERE p.branch = ?  AND p.product = ? and w.bucket_id=? limit 1`;
+    return new Promise((resolve, reject) => {
+        db.query(query, [BranchId, ProductName, dpdDays], (error, result) => {
+
+            if (error) {
+                reject(error);
+            } else {
+                resolve(result.length ? result[0] : null);
+            }
+        });
+    });
+}
+
 async function getUserByEmail(email) {
     const query = "SELECT * FROM tbl_users WHERE email = ?";
     return new Promise((resolve, reject) => {
@@ -1276,8 +1494,15 @@ async function insertUser(req, res) {
                 if (req.body.type === 'nbfc') {
                     const updateUserQuery = `update tbl_users set branch=? where id=?`;
                     const updateUserValues = [insertedId, insertedId];
-                    const userupdateResult = await executeQuery(updateUserQuery, updateUserValues);
+                    await executeQuery(updateUserQuery, updateUserValues);
                 }
+                if (req.body.type === 'agency') {
+                    const updateUserQuery1 = `update tbl_users set isAgency=? where id=?`;
+                    const updateUserValues1 = [insertedId, insertedId];
+                    await executeQuery(updateUserQuery1, updateUserValues1);
+                }
+
+
                 // Insert documents if any
                 if (Object.keys(uploadedDoc).length !== 0) {
                     for (const key in uploadedDoc) {

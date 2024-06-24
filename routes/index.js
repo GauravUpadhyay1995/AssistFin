@@ -56,6 +56,10 @@ route.post("/nbfcWaiverList", [authMiddleware], userController.nbfcWaiverList);
 route.post("/waiverDetails", [authMiddleware], userController.waiverDetails);
 
 route.post("/approvedWaivers", [authMiddleware], userController.approvedWaivers);
+route.post("/approveWaiver", [authMiddleware], userController.approveWaiver);
+route.post("/addWaiverRule", [authMiddleware], userController.addWaiverRule);
+
+route.post("/waiverRuleLists", [authMiddleware], userController.waiverRuleLists);
 
 
 export default route;

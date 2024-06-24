@@ -35,8 +35,8 @@ export const getStateData = async (req, res, next) => {
             cityString = req.body.city.map(item => `'${item}'`).join(',');
             conditions.push(`AND city IN (${cityString})`);
         }
-        if (req.body.pin && req.body.pin.length) {
-            pinString = req.body.pin.map(item => `'${item}'`).join(',');
+        if (req.body.pincode && req.body.pincode.length) {
+            pinString = req.body.pincode.map(item => `'${item}'`).join(',');
             conditions.push(`AND pin IN (${pinString})`);
         }
 
