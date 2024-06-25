@@ -4,17 +4,18 @@ import cors from "cors";
 import landingRoute from "./routes/index.js";
 import Report1Route from "./routes/report1.js";
 import uploadData from "./routes/uploadData.js";
-import authMiddleware from './middlewares/tokenAuth.js'; 
-import { setupCronJobs } from './cronJobs.js'; 
+import authMiddleware from './middlewares/tokenAuth.js';
+import { WaiverPolicyExpiry, WaiverRequestSchemeExpiry } from './cronJobs.js';
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use("/api/users", landingRoute);
-app.use("/api/report1",authMiddleware, Report1Route);
-app.use("/api/upload",authMiddleware, uploadData);
-// setupCronJobs();
+app.use("/api/report1", authMiddleware, Report1Route);
+app.use("/api/upload", authMiddleware, uploadData);
+WaiverPolicyExpiry();
+WaiverRequestSchemeExpiry();
 app.listen(process.env.APP_PORT, () =>
-    console.log('Server is running on http://localhost:'+process.env.APP_PORT)
+    console.log('Server is running on http://localhost:' + process.env.APP_PORT)
 );

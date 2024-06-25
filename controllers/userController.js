@@ -957,6 +957,7 @@ export const waiverList = async (req, res, next) => {
     try {
         const Query = `SELECT tbl_waiver_requests.*, 
                               tbl_users.nbfc_name, 
+                               DATE_FORMAT(tbl_waiver_requests.scheme_expiry, '%d-%m-%Y %h:%i:%s %p') as formatted_expiry_date , 
                               DATE_FORMAT(tbl_waiver_requests.created_date, '%d-%m-%Y %h:%i:%s %p') as formatted_created_date , 
                               DATE_FORMAT(tbl_waiver_requests.approval_date, '%d-%m-%Y %h:%i:%s %p') as formatted_approved_date 
                        FROM tbl_waiver_requests 
@@ -1060,6 +1061,7 @@ export const waiverDetails = async (req, res, next) => {
 
             const CreationData = await getUserById(result[0].agency_id)
             const PoolData = await getPoolDetailsByAgencyId(result[0].agency_id)
+            console.log(result[0])
             result[0]['agencyDetails'] = CreationData;
             result[0]['PoolData'] = PoolData;
             // console.log(CreationData)
@@ -1117,6 +1119,7 @@ export const approvedWaivers = async (req, res, next) => {
 export const approveWaiver = async (req, res, next) => {
     try {
         const updateSchema = Joi.object({
+            scheme_expiry: Joi.string().min(1).required(),
             waiverId: Joi.number().min(1).required(),
             reason: Joi.string().max(100).required(),
             updatedIntrest: Joi.number().min(0).required(),
@@ -1131,8 +1134,8 @@ export const approveWaiver = async (req, res, next) => {
             const errorType = error.details[0].type;
             return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
         }
-        const sql = `UPDATE tbl_waiver_requests SET waiver_rule_id=?, approved_by=?, reason=?, isApproved=?, approved_principal=?, approved_penal=?, approved_intrest=? where id=?`;
-        db.query(sql, [req.body.waiverId, req.user.id, req.body.reason, req.body.isApproved, req.body.updatedPrincipal, req.body.updatedPenal, req.body.updatedIntrest, req.body.waiverId], async (error, result) => {
+        const sql = `UPDATE tbl_waiver_requests SET scheme_expiry=?,waiver_rule_id=?, approved_by=?, reason=?, isApproved=?, approved_principal=?, approved_penal=?, approved_intrest=? where id=?`;
+        db.query(sql, [req.body.scheme_expiry, req.body.waiverId, req.user.id, req.body.reason, req.body.isApproved, req.body.updatedPrincipal, req.body.updatedPenal, req.body.updatedIntrest, req.body.waiverId], async (error, result) => {
             console.log(sql, [req.user.id, req.body.reason, req.body.updatedPrincipal, req.body.updatedPenal, req.body.updatedIntrest, req.body.waiverId]);
             if (error) {
                 console.error("Error occurred while querying the database:", error);
@@ -1355,7 +1358,6 @@ async function getPoolDetailsByAgencyId(id) {
 }
 
 async function getWaiverRuleCriteria(ProductName, BranchId, dpdDays, agencyId) {
-    console.log(dpdDays)
     if (dpdDays > 0 && dpdDays <= 30) {
         dpdDays = 1;
     } else if (dpdDays >= 31 && dpdDays <= 60) {
@@ -1379,10 +1381,10 @@ async function getWaiverRuleCriteria(ProductName, BranchId, dpdDays, agencyId) {
 
 
     const query = `SELECT p.id,w.penal,w.intrest,w.principal,w.expiry_date FROM 
-    tbl_waiver_rules w INNER JOIN tbl_products p ON w.branch_id = p.branch WHERE p.branch = ?  AND p.product = ? and w.bucket_id=? limit 1`;
+    tbl_waiver_rules w INNER JOIN tbl_products p ON w.branch_id = p.branch WHERE p.branch = ?  AND p.product = ? and w.bucket_id=?  limit 1`;
     return new Promise((resolve, reject) => {
         db.query(query, [BranchId, ProductName, dpdDays], (error, result) => {
-
+            console.log(query, [BranchId, ProductName, dpdDays])
             if (error) {
                 reject(error);
             } else {
