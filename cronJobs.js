@@ -6,10 +6,12 @@ import { format } from 'date-fns';
 // Function to set up cron jobs
 const WaiverPolicyExpiry = async () => {
     // Schedule a task to run every 10 seconds
-    cron.schedule('0 0 * * *', async () => { // Changed to run every 10 seconds for testing
+    // cron.schedule('0 0 * * *', async () => { // Changed to run every 10 seconds for testing
+    cron.schedule('*/10 * * * * *', async () => {
         try {
             const RuleQuery = `SELECT id, expiry_date FROM tbl_waiver_rules`;
             const results = await db.query(RuleQuery);
+            console.log(results)
 
             for (const result of results) {
                 const isExpired = checkExpiry(result.expiry_date);
