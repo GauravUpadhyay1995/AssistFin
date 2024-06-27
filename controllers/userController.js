@@ -219,11 +219,11 @@ export const addAgency = async (req, res, next) => {
             clientele: Joi.string().min(2).allow('').optional(),
             password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
             type: Joi.string().min(4).required(),
-            PoolState: Joi.string().required(),
-            PoolZone: Joi.string().required(),
-            PoolBucket: Joi.string().required(),
-            PoolProduct: Joi.string().required(),            // Add validation for other fields you want to update
-        });
+            PoolState: Joi.array().required(),
+            PoolZone: Joi.array().required(),
+            PoolBucket: Joi.array().required(),
+            PoolProduct: Joi.array().required(),            // Add validation for other fields you want to update
+        }); 
 
         const { error } = updateSchema.validate(req.body);
         if (error) {
