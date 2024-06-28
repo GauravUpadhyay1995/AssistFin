@@ -16,8 +16,8 @@ app.use("/api/users", landingRoute);
 app.use("/api/report1", authMiddleware, Report1Route);
 app.use("/api/commercial", authMiddleware, commercialRoute);
 app.use("/api/upload", authMiddleware, uploadData);
-WaiverPolicyExpiry();
-WaiverRequestSchemeExpiry();
+// WaiverPolicyExpiry();
+// WaiverRequestSchemeExpiry();
 app.listen(process.env.APP_PORT, () =>
     console.log('Server is running on http://localhost:' + process.env.APP_PORT)
 );

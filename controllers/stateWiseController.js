@@ -37,7 +37,7 @@ export const getStateData = async (req, res, next) => {
         }
         if (req.body.pincode && req.body.pincode.length) {
             pinString = req.body.pincode.map(item => `'${item}'`).join(',');
-            conditions.push(`AND pin IN (${pinString})`);
+            conditions.push(`AND pincode IN (${pinString})`);
         }
 
         if (req.body.allocation && req.body.allocation.length) {
