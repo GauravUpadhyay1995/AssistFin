@@ -9,8 +9,6 @@ import moment from "moment";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const CURRENT_TIMESTAMP = new Date();
-
-
 export const callLog = async (req, res, next) => {
     try {
 

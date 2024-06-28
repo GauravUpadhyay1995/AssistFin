@@ -35,8 +35,8 @@ export const getStateData = async (req, res, next) => {
             cityString = req.body.city.map(item => `'${item}'`).join(',');
             conditions.push(`AND city IN (${cityString})`);
         }
-        if (req.body.pin && req.body.pin.length) {
-            pinString = req.body.pin.map(item => `'${item}'`).join(',');
+        if (req.body.pincode && req.body.pincode.length) {
+            pinString = req.body.pincode.map(item => `'${item}'`).join(',');
             conditions.push(`AND pin IN (${pinString})`);
         }
 
@@ -359,7 +359,7 @@ export const getResolvedPercentageData = async (req, res, next) => {
                 });
                 return acc;
             }, {});
-            
+
             // Transform the grouped data into the desired format
             const transformedData = Object.keys(groupedData).map(state => ({
                 newdata: {
@@ -938,6 +938,7 @@ export const getAllState = async (req, res, next) => {
     try {
         let QUERY = `SELECT distinct(state) FROM tbl_master${req.user.id}  order by state asc `;
         db.query(QUERY, function (error, result) {
+            console.log(QUERY)
             if (error) {
                 console.error("Error occurred while querying the database:", error);
                 return res.status(500).send({ message: "Internal server error." });

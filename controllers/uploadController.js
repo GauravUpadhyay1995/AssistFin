@@ -59,7 +59,7 @@ const expectedHeaders = ['loan_id',
 ];
 
 export const handleUpload = async (req, res) => {
-    console.log(req.user);
+    console.log(req.file);
 
     if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
@@ -70,7 +70,7 @@ export const handleUpload = async (req, res) => {
         fs.unlinkSync(req.file.path); // Clean up the uploaded file
 
         if (result.success) {
-            res.status(200).send('File uploaded and data inserted into MySQL successfully.');
+            res.status(200).send({ success: true, message: "Data Uploaded" });
         } else {
             res.status(500).send({
                 success: result.success,
