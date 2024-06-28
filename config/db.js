@@ -7,8 +7,5 @@ const conn = mysql.createConnection({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABSE,
     connectTimeout: 90000,
-
 });
-
-
 export default conn;

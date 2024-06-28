@@ -143,7 +143,7 @@ export const getResolutionPosData = async (req, res, next) => {
 
         if (req.body.state && req.body.state.length) {
             stateString = req.body.state.map(item => `'${item}'`).join(',');
-            conditions.push(`AND state IN (${cityString})`);
+            conditions.push(`AND state IN (${stateString})`);
         }
 
         if (req.body.allocation && req.body.allocation.length) {
@@ -437,7 +437,7 @@ export const getResolvedCountData = async (req, res, next) => {
             conditions.push(`AND payment_date BETWEEN '${fromDate}' AND '${toDate}'`);
         }
 
-        let QUERY = `  SELECT ${group_by},payment_date,SUM(CASE WHEN CAST(collected_amt AS DECIMAL(10, 2)) >= CAST(emi_amt_fixed AS DECIMAL(10, 2)) THEN 1 ELSE 0 END) AS resolved_count FROM tbl_master${req.user.id} WHERE id>0 `;
+        let QUERY = `  SELECT ${group_by} as tit,payment_date,SUM(CASE WHEN CAST(collected_amt AS DECIMAL(10, 2)) >= CAST(emi_amt_fixed AS DECIMAL(10, 2)) THEN 1 ELSE 0 END) AS resolved_count FROM tbl_master${req.user.id} WHERE id>0 `;
 
         if (conditions.length > 0) {
             QUERY += conditions.join(" ");
@@ -445,7 +445,7 @@ export const getResolvedCountData = async (req, res, next) => {
 
         QUERY += ` GROUP BY payment_date, ${group_by} ORDER BY payment_date`;
 
-        console.log(QUERY);
+         console.log(QUERY);
 
         db.query(QUERY, (error, results) => {
             if (error) {
@@ -461,7 +461,7 @@ export const getResolvedCountData = async (req, res, next) => {
                 acc[row.tit][row.payment_date] = row.resolved_count;
                 return acc;
             }, {});
-
+console.log(data)
             return res.status(200).send({
                 success: 1,
                 count: results.length,
