@@ -23,9 +23,13 @@ export const getStateData = async (req, res, next) => {
         let ageString = '';
         let loanAmountString = '';
         let bucketString = '';
+        let agencyString='';
         let group_by = "state";
 
-
+        if (req.body.agency && req.body.agency.length) {
+            agencyString = req.body.agency.map(item => `'${item}'`).join(',');
+            conditions.push(`AND agency_name IN (${agencyString})`);
+        }
 
         if (req.body.state && req.body.state.length) {
             stateString = req.body.state.map(item => `'${item}'`).join(',');
@@ -325,10 +329,10 @@ export const getResolvedPercentageData = async (req, res, next) => {
             const toDate = moment(req.body.end_date).format('YYYY-MM-DD');
             conditions.push(`AND payment_date BETWEEN '${fromDate}' AND '${toDate}'`);
         } else {
-            // toDate = moment().format('YYYY-MM-DD');
-            // fromDate = moment().subtract(30, 'days').format('YYYY-MM-DD');
-            toDate = '2024-04-30';
-            fromDate = '2024-04-01';
+             toDate = moment().format('YYYY-MM-DD');
+             fromDate = moment().subtract(30, 'days').format('YYYY-MM-DD');
+            // toDate = '2024-04-30';
+            // fromDate = '2024-04-01';
             conditions.push(`AND payment_date BETWEEN '${fromDate}' AND '${toDate}'`);
         }
 
