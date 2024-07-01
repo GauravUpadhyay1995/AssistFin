@@ -111,12 +111,13 @@ export const getInvoice = async (req, res, next) => {
             }
         }
         let agencyDetails = await getUserByName(req.body.agency, req.user.branch)
-
+        let nbfcDetails = await getNBFCDetailsById(req.user.branch)
         return res.status(200).send({
             success: 1,
             count: Object.keys(results).length,
             data: results,
-            agencyDetails: agencyDetails
+            agencyDetails: agencyDetails,
+            nbfcDetails:nbfcDetails
         });
     } catch (error) {
         console.error("Error occurred:", error);
@@ -126,7 +127,7 @@ export const getInvoice = async (req, res, next) => {
 const getSlabByProductId = async (productName, percentage, bucketId, user) => {
     try {
         const sql = `
-            SELECT tbl_commercial_rule.offer_percentage,tbl_commercial_rule.min_percentage
+            SELECT tbl_commercial_rule.offer_percentage,tbl_commercial_rule.min_percentage,tbl_commercial_rule.fixed_percentage
             FROM tbl_commercial_rule
             INNER JOIN tbl_products ON tbl_commercial_rule.product_id = tbl_products.id
             WHERE tbl_commercial_rule.branch_id = tbl_products.branch
@@ -174,11 +175,24 @@ async function getUserByName(name, branch) {
         });
     });
 }
+async function getNBFCDetailsById(branch) {
+    const query = "SELECT * FROM tbl_users WHERE id = ? and branch=?";
+    return new Promise((resolve, reject) => {
+        db.query(query, [branch,branch], (error, result) => {
+            if (error) {
+                reject(error);
+            } else {
+                const userWithoutPassword = result.length ? omitPassword(result[0]) : null;
+                resolve(userWithoutPassword);
+            }
+        });
+    });
+}
 
 // Helper function to omit 'password' field from user object
 function omitPassword(user) {
     if (!user) return null;
-    const { password,text_password, ...userWithoutPassword } = user;
+    const { password, text_password, ...userWithoutPassword } = user;
     return userWithoutPassword;
 }
 

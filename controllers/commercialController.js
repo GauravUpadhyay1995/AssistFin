@@ -13,8 +13,8 @@ export const addCommercialRule = async (req, res, next) => {
             product_id: Joi.number().min(1).required(),
             bucket_id: Joi.number().min(1).required(),
             fixed_percentage: Joi.number().min(1).max(100).required(),
-            min_percentage: Joi.array().items(Joi.number().min(1).max(100)).required(),
-            offer_percentage: Joi.array().items(Joi.number().min(1).max(100)).required(),
+            min_percentage: Joi.array().items(Joi.string().min(0).max(100)).optional(),
+            offer_percentage: Joi.array().items(Joi.string().min(0).max(100)).optional(),
         });
 
         const { error } = updateSchema.validate(req.body);
