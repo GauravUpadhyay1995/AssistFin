@@ -117,7 +117,7 @@ export const getInvoice = async (req, res, next) => {
             count: Object.keys(results).length,
             data: results,
             agencyDetails: agencyDetails,
-            nbfcDetails:nbfcDetails
+            nbfcDetails: nbfcDetails
         });
     } catch (error) {
         console.error("Error occurred:", error);
@@ -141,6 +141,7 @@ const getSlabByProductId = async (productName, percentage, bucketId, user) => {
                     AND product_id = tbl_products.id
                     AND bucket_id = ${bucketId}
                     AND min_percentage <= ${percentage}
+                    and isApproved=1
               );
         `;
 
@@ -178,7 +179,7 @@ async function getUserByName(name, branch) {
 async function getNBFCDetailsById(branch) {
     const query = "SELECT * FROM tbl_users WHERE id = ? and branch=?";
     return new Promise((resolve, reject) => {
-        db.query(query, [branch,branch], (error, result) => {
+        db.query(query, [branch, branch], (error, result) => {
             if (error) {
                 reject(error);
             } else {

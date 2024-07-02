@@ -7,6 +7,7 @@ import authMiddleware from '../middlewares/tokenAuth.js';
 const route = express.Router();
 route.post("/addCommercialRule", [authMiddleware], commercialController.addCommercialRule);
 route.post("/listCommercialRule", [authMiddleware], commercialController.listCommercialRule);
+route.post("/approveCommercialRule", [authMiddleware], commercialController.approveCommercialRule);
 
 
 
