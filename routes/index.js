@@ -60,6 +60,7 @@ route.post("/approveWaiver", [authMiddleware], userController.approveWaiver);
 route.post("/addWaiverRule", [authMiddleware], userController.addWaiverRule);
 
 route.post("/waiverRuleLists", [authMiddleware], userController.waiverRuleLists);
+// route.post("/getAPR", [authMiddleware], userController.getAPR);
 
 
 export default route;

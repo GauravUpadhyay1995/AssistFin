@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from 'url';
 
 // Define allowed file extensions
-const allowedExtensions = [".jpeg", ".jpg", ".JPEG"];
+const allowedExtensions = [".jpeg", ".jpg", ".JPEG",".pdf"];
 const PROFILE_SIZE = 15 * 1024 * 1024; // Profile size limit in bytes
 
 // Get current directory name

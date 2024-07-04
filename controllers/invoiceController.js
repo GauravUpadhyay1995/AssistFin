@@ -112,12 +112,14 @@ export const getInvoice = async (req, res, next) => {
         }
         let agencyDetails = await getUserByName(req.body.agency, req.user.branch)
         let nbfcDetails = await getNBFCDetailsById(req.user.branch)
+        let accountDetails = await getAccountDetailsById(agencyDetails.id);
         return res.status(200).send({
             success: 1,
             count: Object.keys(results).length,
             data: results,
             agencyDetails: agencyDetails,
-            nbfcDetails: nbfcDetails
+            nbfcDetails: nbfcDetails,
+            accountDetails: accountDetails
         });
     } catch (error) {
         console.error("Error occurred:", error);
@@ -180,6 +182,19 @@ async function getNBFCDetailsById(branch) {
     const query = "SELECT * FROM tbl_users WHERE id = ? and branch=?";
     return new Promise((resolve, reject) => {
         db.query(query, [branch, branch], (error, result) => {
+            if (error) {
+                reject(error);
+            } else {
+                const userWithoutPassword = result.length ? omitPassword(result[0]) : null;
+                resolve(userWithoutPassword);
+            }
+        });
+    });
+}
+async function getAccountDetailsById(agencyId) {
+    const query = "SELECT * FROM tbl_account_details WHERE agency = ?";
+    return new Promise((resolve, reject) => {
+        db.query(query, [agencyId], (error, result) => {
             if (error) {
                 reject(error);
             } else {

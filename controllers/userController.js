@@ -198,6 +198,20 @@ export const addSuperAdminEmployee = async (req, res, next) => {
 export const addAgency = async (req, res, next) => {
     try {
         const updateSchema = Joi.object({
+            account_number: Joi.string()
+                .length(10)
+                .max(20)
+                .pattern(/^\d+$/)
+                .required()
+                .messages({
+                    'string.pattern.base': 'account_number must be a number',
+                    'string.length': 'account_number must be at least 10 digits',
+                    'string.max': 'account_number must be at most 20 digits',
+                }),
+            ifsc_code: Joi.string().min(8).max(50).required(),
+            bank_branch: Joi.string().min(2).max(50).required(),
+            bank_name: Joi.string().min(2).max(50).required(),
+            beneficiary_name: Joi.string().min(2).max(50).required(),
             nbfc_name: Joi.string().min(2).max(50).required(),
             email: Joi.string().email().required(),
             incorporation_date: Joi.string().required(),
@@ -222,8 +236,8 @@ export const addAgency = async (req, res, next) => {
             PoolState: Joi.array().required(),
             PoolZone: Joi.array().required(),
             PoolBucket: Joi.array().required(),
-            PoolProduct: Joi.array().required(),            // Add validation for other fields you want to update
-        }); 
+            PoolProduct: Joi.array().required(),
+        });
 
         const { error } = updateSchema.validate(req.body);
         if (error) {
@@ -1440,6 +1454,27 @@ async function insertUser(req, res) {
                 uploadedDoc = await uploadtocloudinary(req, res);
 
             } else if (req.user.type === "nbfc") {
+                if (!('Pan' in req.files)) {
+                    console.log("Pan")
+
+                }
+                if (!('COI' in req.files)) {
+                    console.log("COI")
+
+                }
+                if (!('GSTCertificate' in req.files)) {
+                    console.log("GSTCertificate")
+
+                }
+                if (!('Empannelment' in req.files)) {
+                    console.log("Empannelment")
+
+                }
+                if (!('SignedAgreement' in req.files)) {
+                    console.log("SignedAgreement")
+
+                }
+                console.log(req.files)
                 if (!('Pan' in req.files) || !('COI' in req.files) || !('GSTCertificate' in req.files) || !('Empannelment' in req.files) || !('SignedAgreement' in req.files)) {
                     for (const key in req.files) {
                         fs.unlink(`uploads/profile/${req.files[key][0].filename}`, (err) => {
@@ -1479,10 +1514,9 @@ async function insertUser(req, res) {
             }
 
             try {
-                // Insert user
                 req.body.branch = req.user.branch;
 
-                const { PoolState, PoolBucket, PoolZone, PoolProduct, ...userData } = req.body;
+                const { account_number, ifsc_code, bank_branch, bank_name, beneficiary_name, PoolState, PoolBucket, PoolZone, PoolProduct, ...userData } = req.body;
                 const fields = Object.keys(userData).join(", ");
                 const placeholders = Array(Object.keys(userData).length).fill("?").join(", ");
                 const insertUserQuery = `INSERT INTO tbl_users (created_by, ${fields}) VALUES (?, ${placeholders})`;
@@ -1535,6 +1569,11 @@ async function insertUser(req, res) {
                     const bucketJson = JSON.stringify(PoolBucket);
                     const stateJson = JSON.stringify(PoolState);
                     await executeQuery(poolQuery, [insertedId, stateJson, zoneJson, bucketJson, productJson, req.user.id]);
+
+                    //inserting Bank details 
+
+                    const bankQuery = `INSERT INTO tbl_account_details (bank_name,branch_name,ifsc,acc_number,beneficiary_name,agency) VALUES (?,?,?,?,?,?)`;
+                    await executeQuery(bankQuery, [bank_name, bank_branch, ifsc_code, account_number, beneficiary_name, insertedId]);
                 }
 
                 // Commit transaction
@@ -1653,6 +1692,45 @@ async function getAllDocByUserId(id) {
         });
     });
 }
+// export const getAPR = async (req, res, next) => {
+//     try {
+//         const disbursalAmount = req.body.disbursalAmount;
+//         const approval = req.body.approval;
+
+//         // Calculate rep
+//         const rep = Math.round(disbursalAmount * (req.body.roi / 100));
+
+//         // Calculate installmentAmount
+//         const installmentAmount = disbursalAmount + (rep * req.body.tenure);
+
+//         // Calculate inte
+//         const inte = rep * 30;
+
+//         // Calculate intem
+//         const intem = rep * req.body.tenure;
+
+//         // Calculate inte1
+//         const inte1 = inte * 12;
+
+//         // Calculate adm
+//         const adm = req.body.adminFee;
+
+//         // Calculate gst
+//         const gst = Math.round(adm * (18 / 100) * 100) / 100;
+
+//         // Calculate tam
+//         const tam = adm + gst;
+
+//         // Calculate apr
+//         const apr = Math.round((((inte1 + tam) / req.body.loanAmtApproved) / 30) * 365);
+
+//         return res.status(200).send({ success: true, message: "Your APR", data: apr });
+
+//     } catch (error) {
+//         console.error("Error occurred in approveWaiver function:", error);
+//         return res.status(500).send({ success: false, message: "Internal server error." });
+//     }
+// }
 
 
 
