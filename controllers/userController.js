@@ -1346,18 +1346,27 @@ const updateProfile = async (req, res) => {
 
 
 }
-async function getUserById(id) {
+export const getUserById = async (id) => {
     const query = "SELECT * FROM tbl_users WHERE id = ?";
     return new Promise((resolve, reject) => {
         db.query(query, [id], (error, result) => {
             if (error) {
                 reject(error);
             } else {
-                resolve(result.length ? result[0] : null);
+                if (result.length) {
+                    const sanitizedResult = result.map(user => {
+                        const { password, ...sanitizedUser } = user;
+                        return sanitizedUser;
+                    });
+                    resolve(sanitizedResult[0]);
+                } else {
+                    resolve(null);
+                }
             }
         });
     });
 }
+
 async function getPoolDetailsByAgencyId(id) {
     const query = "SELECT * FROM tbl_pool_allocations WHERE userId = ?";
     return new Promise((resolve, reject) => {
@@ -1454,27 +1463,7 @@ async function insertUser(req, res) {
                 uploadedDoc = await uploadtocloudinary(req, res);
 
             } else if (req.user.type === "nbfc") {
-                if (!('Pan' in req.files)) {
-                    console.log("Pan")
 
-                }
-                if (!('COI' in req.files)) {
-                    console.log("COI")
-
-                }
-                if (!('GSTCertificate' in req.files)) {
-                    console.log("GSTCertificate")
-
-                }
-                if (!('Empannelment' in req.files)) {
-                    console.log("Empannelment")
-
-                }
-                if (!('SignedAgreement' in req.files)) {
-                    console.log("SignedAgreement")
-
-                }
-                console.log(req.files)
                 if (!('Pan' in req.files) || !('COI' in req.files) || !('GSTCertificate' in req.files) || !('Empannelment' in req.files) || !('SignedAgreement' in req.files)) {
                     for (const key in req.files) {
                         fs.unlink(`uploads/profile/${req.files[key][0].filename}`, (err) => {
