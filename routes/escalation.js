@@ -15,5 +15,8 @@ route.post("/replyEscalation", [cpUpload, authMiddleware], userController.replyE
 route.post("/closeEscalation", [authMiddleware], userController.closeEscalation);
 
 route.post("/getClosedEscalationById", [authMiddleware], userController.getClosedEscalationById);
+route.post("/escalationWaiverRequest", [authMiddleware], userController.escalationWaiverRequest);
+
+route.post("/escalationWaiverApprove", [authMiddleware], userController.escalationWaiverApprove);
 
 export default route;

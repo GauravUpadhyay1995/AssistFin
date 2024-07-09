@@ -233,7 +233,6 @@ export const replyEscalation = async (req, res, next) => {
 
 
                 if (req.files !== undefined && Object.keys(req.files).length === 1) {
-                    console.log("entered")
                     const uploadedDoc = await uploadtocloudinary(req, res);
                     if (uploadedDoc != false && Object.keys(uploadedDoc).length !== 0) {
                         for (const key in uploadedDoc) {
@@ -297,6 +296,126 @@ export const closeEscalation = async (req, res, next) => {
             try {
                 const query = `UPDATE tbl_escalations SET penalty=?, penalty_type=?, final_comments=?, updated_by=?, status=? WHERE id=?`;
                 await executeQuery(query, [penality, penalityOption, message, req.user.id, closeOption, escalation_id]);
+
+                db.commit(function (err) {
+                    if (err) {
+                        db.rollback(function () {
+                            console.error("Error committing transaction:", err);
+                            return res.status(500).send({ success: false, message: "Database error." });
+                        });
+                    } else {
+                        return res.status(200).send({ success: true, message: "Escalation Closed" });
+                    }
+                });
+
+            } catch (error) {
+                db.rollback(function () {
+                    console.error("Error occurred in transaction:", error);
+                    return res.status(500).send({ success: false, message: "Database error." });
+                });
+            }
+        });
+    } catch (error) {
+        console.error("Error occurred while fetching data:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+};
+
+const getCurrentDateTime = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+export const escalationWaiverRequest = async (req, res, next) => {
+    try {
+        const updateSchema = Joi.object({
+
+            waiver: Joi.number().min(1).optional(),
+            escalation_id: Joi.number().min(1).required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+        const { waiver, escalation_id } = req.body;
+
+        db.beginTransaction(async function (err) {
+            if (err) {
+                console.error("Error beginning transaction:", err);
+                return res.status(500).send({ success: false, message: "Database error." });
+            }
+
+            try {
+
+
+                const currentDateTime = getCurrentDateTime();
+                const query = `UPDATE tbl_escalations SET waiver_request=?, waiver_requested_by=?, waiver_created_date=? WHERE id=?`;
+                await executeQuery(query, [waiver, req.user.id, currentDateTime, escalation_id]);
+
+                db.commit(function (err) {
+                    if (err) {
+                        db.rollback(function () {
+                            console.error("Error committing transaction:", err);
+                            return res.status(500).send({ success: false, message: "Database error." });
+                        });
+                    } else {
+                        return res.status(200).send({ success: true, message: "Escalation Closed" });
+                    }
+                });
+
+            } catch (error) {
+                db.rollback(function () {
+                    console.error("Error occurred in transaction:", error);
+                    return res.status(500).send({ success: false, message: "Database error." });
+                });
+            }
+        });
+    } catch (error) {
+        console.error("Error occurred while fetching data:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+};
+
+export const escalationWaiverApprove = async (req, res, next) => {
+    try {
+        const updateSchema = Joi.object({
+
+            statusID: Joi.number().min(0).optional(),
+            escalation_id: Joi.number().min(1).required(),
+            waiver: Joi.number().min(1).required(),
+        });
+
+        const { error } = updateSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details.map(detail => detail.message).join(", ");
+            const errorType = error.details[0].type;
+            return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+        }
+
+        const { escalation_id, statusID } = req.body;
+        req.body.waiver = statusID == 2 ? 0 : (statusID == 0 ? 0 : req.body.waiver);
+
+        db.beginTransaction(async function (err) {
+            if (err) {
+                console.error("Error beginning transaction:", err);
+                return res.status(500).send({ success: false, message: "Database error." });
+            }
+
+            try {
+
+
+                const currentDateTime = getCurrentDateTime();
+                const query = `UPDATE tbl_escalations SET waiver_approved=?,waiverStatus=?, waiver_approved_by=?, waiver_approved_date=? WHERE id=?`;
+                await executeQuery(query, [req.body.waiver, statusID, req.user.id, currentDateTime, escalation_id]);
 
                 db.commit(function (err) {
                     if (err) {
