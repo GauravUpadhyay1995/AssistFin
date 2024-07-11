@@ -272,8 +272,8 @@ export const closeEscalation = async (req, res, next) => {
     try {
         const updateSchema = Joi.object({
             closeOption: Joi.string().min(1).required(),
-            penalityOption: Joi.string().min(1).optional(),
-            penality: Joi.number().min(1).optional(),
+            penalityOption: Joi.number().min(0).optional(),
+            penality: Joi.number().min(0).optional(),
             message: Joi.string().min(4).required(),
             escalation_id: Joi.number().min(1).required(),
         });
@@ -391,7 +391,11 @@ export const escalationWaiverApprove = async (req, res, next) => {
 
             statusID: Joi.number().min(0).optional(),
             escalation_id: Joi.number().min(1).required(),
-            waiver: Joi.number().min(1).required(),
+            waiver: Joi.number().when('statusID', {
+                is: 2,
+                then: Joi.number().min(0).required(),
+                otherwise: Joi.number().min(1).required()
+            })
         });
 
         const { error } = updateSchema.validate(req.body);

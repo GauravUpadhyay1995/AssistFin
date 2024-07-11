@@ -46,10 +46,13 @@ export const getInvoice = async (req, res, next) => {
 
         let toDate = ''
         let fromDate = ''
-
+        // start_date means month and end_date means years
+        console.log(req.body)
         if (req.body.start_date && req.body.end_date) {
-            fromDate = moment(req.body.start_date).format('YYYY-MM-DD');
-            toDate = moment(req.body.end_date).format('YYYY-MM-DD');
+            const lastDay = new Date(req.body.end_date, req.body.start_date, 0).getDate();
+            const month = req.body.start_date < 10 ? `0${req.body.start_date}` : req.body.start_date;
+            fromDate = `${req.body.end_date}-${month}-01`
+            toDate = `${req.body.end_date}-${month}-${lastDay}`
         } else {
             toDate = "2024-04-30";
             fromDate = "2024-04-01";
@@ -113,13 +116,15 @@ export const getInvoice = async (req, res, next) => {
         let agencyDetails = await getUserByName(req.body.agency, req.user.branch)
         let nbfcDetails = await getNBFCDetailsById(req.user.branch)
         let accountDetails = await getAccountDetailsById(agencyDetails.id);
+        let penalty = await getPenalty(agencyDetails.id, toDate);
         return res.status(200).send({
             success: 1,
             count: Object.keys(results).length,
             data: results,
             agencyDetails: agencyDetails,
             nbfcDetails: nbfcDetails,
-            accountDetails: accountDetails
+            accountDetails: accountDetails,
+            penalty: penalty
         });
     } catch (error) {
         console.error("Error occurred:", error);
@@ -210,6 +215,20 @@ function omitPassword(user) {
     if (!user) return null;
     const { password, text_password, ...userWithoutPassword } = user;
     return userWithoutPassword;
+}
+
+async function getPenalty(agency_id, toDate) {
+    const query = "SELECT *,DATE_FORMAT(fromDate, '%d-%m-%Y') as fromDate,DATE_FORMAT(toDate, '%d-%m-%Y') as toDate FROM `tbl_escalations` where date(toDate)<? and waiverStatus=1 and invoice_month is NULL and agency_id=?;";
+    return new Promise((resolve, reject) => {
+        db.query(query, [toDate, agency_id], (error, result) => {
+            if (error) {
+                reject(error);
+            } else {
+                const user = result.length ? result : null;
+                resolve(user);
+            }
+        });
+    });
 }
 
 
