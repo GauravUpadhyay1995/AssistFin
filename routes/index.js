@@ -59,6 +59,8 @@ route.post("/approvedWaivers", [authMiddleware], userController.approvedWaivers)
 route.post("/approveWaiver", [authMiddleware], userController.approveWaiver);
 route.post("/addWaiverRule", [authMiddleware], userController.addWaiverRule);
 
+route.post("/getAgencyList", [authMiddleware], userController.getAgencyList);
+
 route.post("/waiverRuleLists", [authMiddleware], userController.waiverRuleLists);
 // route.post("/getAPR", [authMiddleware], userController.getAPR);
 

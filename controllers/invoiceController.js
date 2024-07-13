@@ -2,6 +2,8 @@ import bcrypt from "bcrypt";
 import Joi from "joi";
 import db from "../config/db.js";
 import moment from "moment";
+import { UploadOnCLoudinary } from '../utils/cloudinary.js';
+import { getUserById } from './userController.js'
 
 export const getInvoice = async (req, res, next) => {
     const BucketOptions = [
@@ -46,11 +48,12 @@ export const getInvoice = async (req, res, next) => {
 
         let toDate = ''
         let fromDate = ''
+        let lastDay = '';
+        let month = '';
         // start_date means month and end_date means years
-        console.log(req.body)
         if (req.body.start_date && req.body.end_date) {
-            const lastDay = new Date(req.body.end_date, req.body.start_date, 0).getDate();
-            const month = req.body.start_date < 10 ? `0${req.body.start_date}` : req.body.start_date;
+            lastDay = new Date(req.body.end_date, req.body.start_date, 0).getDate();
+            month = req.body.start_date < 10 ? `0${req.body.start_date}` : req.body.start_date;
             fromDate = `${req.body.end_date}-${month}-01`
             toDate = `${req.body.end_date}-${month}-${lastDay}`
         } else {
@@ -117,6 +120,8 @@ export const getInvoice = async (req, res, next) => {
         let nbfcDetails = await getNBFCDetailsById(req.user.branch)
         let accountDetails = await getAccountDetailsById(agencyDetails.id);
         let penalty = await getPenalty(agencyDetails.id, toDate);
+        let isGenerated = await checkInvoice(agencyDetails.id, month, req.body.end_date)
+
         return res.status(200).send({
             success: 1,
             count: Object.keys(results).length,
@@ -124,13 +129,190 @@ export const getInvoice = async (req, res, next) => {
             agencyDetails: agencyDetails,
             nbfcDetails: nbfcDetails,
             accountDetails: accountDetails,
-            penalty: penalty
+            penalty: penalty,
+            isGenerated: isGenerated
+
         });
     } catch (error) {
         console.error("Error occurred:", error);
         return res.status(500).send({ message: "Internal server error." });
     }
 };
+
+export const confirmInvoice = async (req, res, next) => {
+    db.beginTransaction(async function (err) {
+        if (err) {
+            console.error("Error beginning transaction:", err);
+            return res.status(500).send({ success: false, message: "Database error." });
+        }
+        try {
+            if (!('file' in req.files)) {
+                for (const key in req.files) {
+                    fs.unlink(`uploads/profile/${req.files[key][0].filename}`, (err) => {
+                        if (err) console.error("Error deleting file:", err);
+                    });
+                }
+                return res.status(400).send({ success: false, message: "Mandatory Documents are missing" });
+            }
+            const ids = req.body.ids;
+            const uploadedDoc = await uploadtocloudinary(req, res);
+            if (Object.keys(uploadedDoc).length !== 0) {
+                for (const key in uploadedDoc) {
+                    if (uploadedDoc.hasOwnProperty(key)) {
+                        const docquery = `INSERT INTO tbl_invoices (agency_id, month, year, url, created_by, escalation_ids) VALUES (?, ?, ?, ?, ?, ?)`;
+                        await executeQuery(docquery, [req.body.agency_id, req.body.month, req.body.year, uploadedDoc[key], req.user.id, ids]);
+                    }
+                }
+
+
+                const lastDay = new Date(req.body.year, req.body.month, 0).getDate();
+                const month = req.body.month < 10 ? `0${req.body.month}` : req.body.month;
+                const invoice_month = `${req.body.year}-${month}-${lastDay}`
+                const idsArray = ids.split(',');
+
+                const query = `update  tbl_escalations set invoice_month=? where id in (${idsArray.join(',')})`;
+                await executeQuery(query, [invoice_month, ids]);
+
+                db.commit(function (err) {
+                    if (err) {
+                        console.error("Error committing transaction:", err);
+                        return res.status(500).send({ success: false, message: "Database error." });
+                    }
+                    return res.status(200).send({ success: true, message: "Invoice generated successfully" });
+                });
+            } else {
+                throw new Error("No documents uploaded");
+            }
+        } catch (error) {
+            db.rollback(function () {
+                console.error("Error occurred in transaction:", error);
+                return res.status(500).send({ success: false, message: "Database error." });
+            });
+        }
+    });
+}
+export const changeInvoiceStatus = async (req, res, next) => {
+    const updateSchema = Joi.object({
+        id: Joi.number().min(1).required(),
+        status: Joi.number().min(0).required(),
+        ids: Joi.string().min(0).required(),
+    });
+    const { error } = updateSchema.validate(req.body);
+    if (error) {
+        const errorMessage = error.details.map(detail => detail.message).join(", ");
+        const errorType = error.details[0].type;
+        return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+    }
+
+    const sql = `update tbl_invoices set approved=? , approved_by=? where id =?`;
+    const result = await executeQuery(sql, [req.body.status, req.user.id, req.body.id]);
+
+
+    if (req.body.status == 2) {
+        const idsArray = req.body.ids.split(',');
+
+        const updateEscalation = `update tbl_escalations set invoice_month=null where id in (${idsArray.join(',')})`;
+        const result1 = await executeQuery(updateEscalation, [req.body.ids]);
+
+
+    }
+
+    return res.status(200).json({ success: true, message: `Updated` });
+
+
+
+}
+
+export const deleteInvoice = async (req, res, next) => {
+    const updateSchema = Joi.object({
+        id: Joi.number().min(1).required(),
+        status: Joi.number().min(0).required(),
+        escalation_ids: Joi.string().min(0).required(),
+    });
+    const { error } = updateSchema.validate(req.body);
+    if (error) {
+        const errorMessage = error.details.map(detail => detail.message).join(", ");
+        const errorType = error.details[0].type;
+        return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+    }
+    try {
+        const sql = `update tbl_invoices set isActive=0  where id =?`;
+        const result = await executeQuery(sql, [req.body.id]);
+        const idsArray = req.body.escalation_ids.split(',');
+
+        const updateEscalationIDS = `update tbl_escalations set invoice_month=null  where id in (${idsArray.join(',')})`;
+        const queryresult = await new Promise((resolve, reject) => {
+            db.query(updateEscalationIDS, (error, result) => {
+                console.log(updateEscalationIDS)
+
+                if (error) {
+                    console.error("Error occurred in transaction:", error);
+                    return reject(error);
+
+                }
+                resolve(result);
+            });
+        });
+
+    } catch (error) {
+        console.error("Error occurred in transaction:", error);
+        return res.status(500).send({ success: false, message: "Database error." });
+    }
+
+    return res.status(200).json({ success: true, message: 'Updated' });
+
+}
+export const getPayment = async (req, res, next) => {
+    const updateSchema = Joi.object({
+        agency: Joi.number().min(1).required(),
+        month: Joi.array().items(Joi.number().min(1).max(12)).required(),
+        year: Joi.number().min(1).required(),
+    });
+    const { error } = updateSchema.validate(req.body);
+    if (error) {
+        const errorMessage = error.details.map(detail => detail.message).join(", ");
+        const errorType = error.details[0].type;
+        return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+    }
+
+    const { agency, month, year } = req.body;
+
+    try {
+        const sql = `SELECT 
+    i.*, 
+    DATE_FORMAT(i.created_date, '%d-%m-%Y %h:%i:%s %p') as created_date,
+
+    u1.nbfc_name AS created_by,
+    u2.nbfc_name AS approved_by,
+    u3.nbfc_name AS agency_name
+FROM 
+    tbl_invoices i
+LEFT JOIN 
+    tbl_users u1 ON i.created_by = u1.id
+LEFT JOIN 
+    tbl_users u2 ON i.approved_by = u2.id 
+LEFT JOIN 
+    tbl_users u3 ON i.agency_id = u3.id
+    
+    where i.agency_id=? and i.isActive=1 and i.month in (?) and i.year=? `;
+        const queryResult = await new Promise((resolve, reject) => {
+            db.query(sql, [agency, month, year], (error, result) => {
+                if (error) {
+                    console.error("Error executing SQL query:", error);
+                    return reject(error);
+                }
+                resolve(result);
+            });
+        });
+
+
+        return res.status(200).json({ success: true, data: queryResult });
+    } catch (err) {
+        console.error("Database error:", err);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+}
+
 const getSlabByProductId = async (productName, percentage, bucketId, user) => {
     try {
         const sql = `
@@ -168,6 +350,20 @@ const getSlabByProductId = async (productName, percentage, bucketId, user) => {
         console.error("Error occurred:", error);
         throw error;  // Propagate the error for proper handling in the calling function
     }
+}
+async function checkInvoice(agency_id, month, year) {
+    const query = "SELECT id,url,approved FROM tbl_invoices WHERE agency_id = ? AND month = ? and year=? and isActive=1 and (approved=1 or approved=0)";
+    return new Promise((resolve, reject) => {
+        db.query(query, [agency_id, month, year], (error, result) => {
+            if (error) {
+                reject(error);
+            } else {
+                // Omit 'password' field from the result object
+                const userWithoutPassword = result.length ? result[0] : null;
+                resolve(userWithoutPassword);
+            }
+        });
+    });
 }
 async function getUserByName(name, branch) {
     const query = "SELECT * FROM tbl_users WHERE nbfc_name = ? AND branch = ?";
@@ -210,6 +406,8 @@ async function getAccountDetailsById(agencyId) {
     });
 }
 
+
+
 // Helper function to omit 'password' field from user object
 function omitPassword(user) {
     if (!user) return null;
@@ -231,5 +429,45 @@ async function getPenalty(agency_id, toDate) {
     });
 }
 
+async function uploadtocloudinary(req, res) {
+    const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA', 'COI', 'GSTCertificate', 'Empannelment', 'SignedAgreement', 'file'];
+    const uploadResults = {};
+
+    // Check if any files are uploaded
+    const noFilesUploaded = allowedFields.every(field => !req.files[field]);
+    if (noFilesUploaded) {
+        console.log("No files uploaded.");
+        return "no files found";
+    }
+
+    try {
+        for (const field of allowedFields) {
+            if (req.files[field]) {
+                const filePath = req.files[field][0].path;
+                console.log(`Uploading ${field} from path ${filePath}`);
+                uploadResults[field] = await UploadOnCLoudinary(filePath);
+                console.log(`Uploaded ${field}: `, uploadResults[field]);
+            }
+        }
+
+        return uploadResults;
+    } catch (error) {
+        console.error("Error occurred during file upload to Cloudinary:", error);
+        return false;
+    }
+}
 
 
+
+// Function to execute query
+function executeQuery(query, values) {
+    return new Promise((resolve, reject) => {
+        db.query(query, values, (error, result) => {
+            if (error) {
+                return reject(error);
+            }
+            console.log(result)
+            resolve(result);
+        });
+    });
+}

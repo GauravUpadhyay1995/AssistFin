@@ -1289,7 +1289,30 @@ ORDER BY
     }
 
 }
+export const getAgencyList = async (req, res, next) => {
+    try {
+        const query = "SELECT * FROM tbl_users WHERE branch = ? and type='agency' and isActive=1 and isApproved=1";
+        
+        db.query(query, [req.user.branch], (error, result) => {
+            if (error) {
+                return next(error); // Pass the error to the next middleware
+            } else {
+                if (result.length) {
+                    const sanitizedResult = result.map(user => {
+                        const { password, text_password, ...sanitizedUser } = user;
+                        return sanitizedUser;
+                    });
+                    return res.status(200).json(sanitizedResult);
+                } else {
+                    return res.status(404).json({ message: "No agencies found" });
+                }
+            }
+        });
 
+    } catch (error) {
+        return next(error); // Pass the error to the next middleware
+    }
+}
 
 
 const updateProfile = async (req, res) => {

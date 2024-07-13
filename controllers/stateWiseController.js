@@ -897,7 +897,7 @@ export const getAllAgency = async (req, res, next) => {
 
 
         let QUERY = `SELECT distinct(agency_name) FROM tbl_master${req.user.id}  order by agency_name asc `;
-
+console.log(QUERY)
 
         db.query(QUERY, function (error, result) {
             if (error) {
