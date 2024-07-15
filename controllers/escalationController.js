@@ -181,7 +181,8 @@ export const getEscalationByAgencyId = async (req, res, next) => {
 export const getClosedEscalationById = async (req, res, next) => {
     try {
         const sql = `SELECT * , DATE_FORMAT(fromDate, '%d-%m-%Y %h:%i:%s %p') as fromDate,
-     DATE_FORMAT(toDate, '%d-%m-%Y %h:%i:%s %p') as toDate from tbl_escalations where id=?`;
+     DATE_FORMAT(toDate, '%d-%m-%Y %h:%i:%s %p') as toDate, DATE_FORMAT(created_date, '%d-%m-%Y %h:%i:%s %p') as created_date,
+     DATE_FORMAT(updated_date, '%d-%m-%Y %h:%i:%s %p') as updated_date from tbl_escalations where id=?`;
         const result = await executeQuery(sql, [req.body.escalation_id]);
         return res.status(200).send({ success: true, message: "Escalation Fetched", data: result });
     } catch (error) {
