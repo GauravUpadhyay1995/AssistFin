@@ -1,9 +1,10 @@
 import express from 'express';
 import multer from 'multer';
 import * as uploadController from '../controllers/uploadController.js';
+import * as clientController from '../controllers/clientFinderController.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import authMiddleware from '../middlewares/tokenAuth.js'; 
+import authMiddleware from '../middlewares/tokenAuth.js';
 
 
 // Fix for __dirname in ES module scope
@@ -25,10 +26,12 @@ const storage = multer.diskStorage({
 // Initialize upload
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 2*10000000 } // 10 MB limit
+    limits: { fileSize: 2 * 10000000 } // 10 MB limit
 }).single('file');
 
 // Handle file upload
-router.post('/uploadMasterData', [upload,authMiddleware], uploadController.handleUpload);
+router.post('/uploadMasterData', [upload, authMiddleware], uploadController.handleUpload);
+router.post('/uploadClientFinder', [upload, authMiddleware], clientController.uploadClientFinder);
+
 
 export default router;

@@ -8,6 +8,7 @@ const route = express.Router();
 route.post("/fetchClients", clientFinderController.fetchClients);
 route.post("/generateFakeData", clientFinderController.generateFakeData);
 
+route.post("/uploadClientFinder", clientFinderController.uploadClientFinder);
 
 
 export default route;
