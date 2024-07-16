@@ -8,6 +8,7 @@ import commercialRoute from "./routes/commercial.js";
 import invoiceRoute from "./routes/invoice.js";
 import authMiddleware from './middlewares/tokenAuth.js';
 import escalationRoute from "./routes/escalation.js";
+import clientFinderRoute from "./routes/clientFinder.js";
 
 
 import { WaiverPolicyExpiry, WaiverRequestSchemeExpiry } from './cronJobs.js';
@@ -21,6 +22,7 @@ app.use("/api/report1", authMiddleware, Report1Route);
 app.use("/api/commercial", authMiddleware, commercialRoute);
 app.use("/api/invoice", authMiddleware, invoiceRoute);
 app.use("/api/escalation", authMiddleware, escalationRoute);
+app.use("/api/clientFinder", clientFinderRoute);
 
 app.use("/api/upload", authMiddleware, uploadData);
 // WaiverPolicyExpiry();
