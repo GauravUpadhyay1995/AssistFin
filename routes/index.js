@@ -42,7 +42,6 @@ route.post("/getSuperAdminEmployees", [authMiddleware], userController.getSuperA
 route.post("/getNbfcEmployees", [authMiddleware], userController.getNbfcEmployees);
 route.post("/getNBFC", [authMiddleware], userController.getNBFC);
 route.post("/getUserProfile", [authMiddleware], userController.getUserProfile);
-route.post("/testing", [cpUpload1], userController.testing);
 route.post("/AddProducts", [authMiddleware], userController.AddProducts);
 route.post("/getProducts", [authMiddleware], userController.getProducts);
 route.post("/deleteProduct", [authMiddleware], userController.deleteProduct);
@@ -62,7 +61,9 @@ route.post("/addWaiverRule", [authMiddleware], userController.addWaiverRule);
 route.post("/getAgencyList", [authMiddleware], userController.getAgencyList);
 
 route.post("/waiverRuleLists", [authMiddleware], userController.waiverRuleLists);
-// route.post("/getAPR", [authMiddleware], userController.getAPR);
-
+ route.post("/getRoles", [authMiddleware], userController.getRoles);
+ route.post("/getRoleWiseEmployee", [authMiddleware], userController.getRoleWiseEmployee);
+ 
+ route.post("/getAllRole", [authMiddleware], userController.getAllRole);
 
 export default route;

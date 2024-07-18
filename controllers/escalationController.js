@@ -137,13 +137,16 @@ export const getEscalationByAgencyId = async (req, res, next) => {
         const sql = `SELECT 
                         e.comments as ESC_COMMENTS, 
                         r.*,
-                        DATE_FORMAT(r.created_date, '%d-%m-%Y %h:%i:%s %p') as created_date
+                        DATE_FORMAT(r.created_date, '%d-%m-%Y %h:%i:%s %p') as created_date,
+                         u1.nbfc_name AS created_by
                      FROM 
                         tbl_escalations e
                      LEFT JOIN 
                         tbl_escalation_reply r 
                      ON 
                         e.id = r.escalation_id
+                        LEFT JOIN 
+    tbl_users u1 ON r.created_by = u1.id
                      WHERE  
                         r.escalation_id IN (SELECT id FROM tbl_escalations WHERE agency_id = ? and status=?)
                      ORDER BY 
@@ -164,6 +167,7 @@ export const getEscalationByAgencyId = async (req, res, next) => {
                 isAgency: row.isAgency,
                 escalation_id: row.escalation_id,
                 created_date: row.created_date,
+                created_by: row.created_by,
                 attachments: row.attachments
             });
 
@@ -180,9 +184,12 @@ export const getEscalationByAgencyId = async (req, res, next) => {
 
 export const getClosedEscalationById = async (req, res, next) => {
     try {
-        const sql = `SELECT * , DATE_FORMAT(fromDate, '%d-%m-%Y %h:%i:%s %p') as fromDate,
+        const sql = `
+        
+        SELECT * , DATE_FORMAT(fromDate, '%d-%m-%Y %h:%i:%s %p') as fromDate,
      DATE_FORMAT(toDate, '%d-%m-%Y %h:%i:%s %p') as toDate, DATE_FORMAT(created_date, '%d-%m-%Y %h:%i:%s %p') as created_date,
-     DATE_FORMAT(updated_date, '%d-%m-%Y %h:%i:%s %p') as updated_date from tbl_escalations where id=?`;
+     DATE_FORMAT(updated_date, '%d-%m-%Y %h:%i:%s %p') as updated_date from tbl_escalations where id=?
+     `;
         const result = await executeQuery(sql, [req.body.escalation_id]);
         return res.status(200).send({ success: true, message: "Escalation Fetched", data: result });
     } catch (error) {

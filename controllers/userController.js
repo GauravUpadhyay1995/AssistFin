@@ -75,6 +75,7 @@ export const addNbfcEmployee = async (req, res, next) => {
             email: Joi.string().email().required(),
             password: Joi.string().min(8).max(16).pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,16}$")).required(),
             type: Joi.string().min(4).required(),
+            role: Joi.number().min(1).required(),
             // Add validation for other fields you want to update
         });
 
@@ -363,7 +364,7 @@ export const userLogin = async (req, res, next) => {
             return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
         }
         const { email, password } = req.body;
-        const userQuery = "SELECT isApproved,isAgency,branch,isActive,nbfc_name,id, password, email,profile,type FROM tbl_users WHERE email = ?";
+        const userQuery = "SELECT isApproved,isAgency,branch,isActive,nbfc_name,id, password, email,profile,type,role FROM tbl_users WHERE email = ?";
         db.query(userQuery, [email], async (error, result) => {
             if (error) {
                 console.error("Error occurred while querying the database:", error);
@@ -389,7 +390,7 @@ export const userLogin = async (req, res, next) => {
                 if (!passwordMatch) {
                     return res.status(401).send({ success: false, message: "Invalid Password." });
                 }
-                const token = jwt.sign({ isAgency: user.isAgency, branch: user.branch, id: user.id, nbfc_name: user.nbfc_name, email: user.email, type: user.type, profile: user.profile }, process.env.SECRET_KEY, {
+                const token = jwt.sign({ isAgency: user.isAgency, branch: user.branch, id: user.id, nbfc_name: user.nbfc_name, email: user.email, type: user.type, profile: user.profile, role: user.role }, process.env.SECRET_KEY, {
                     expiresIn: process.env.TOKENEXPIN
                 });
                 return res.status(200).send({ success: true, token });
@@ -668,31 +669,7 @@ export const getUserProfile = async (req, res, next) => {
         return res.status(500).send({ success: false, message: "Internal server error." });
     }
 };
-export const testing = async (req, res, next) => {
 
-    const allowedFields = ['Profile', 'Pan', 'Adhaar', 'PoliceVerification', 'DRA', 'COI', 'GSTCertificate', 'Empannelment', 'SignedAgreement'];
-    const uploadResults = {};
-
-    // Check if any files are uploaded
-    const noFilesUploaded = allowedFields.every(field => !req.files[field]);
-    if (noFilesUploaded) {
-        return res.status(400).json({ message: 'No files uploaded' });
-    }
-
-    try {
-        for (const field of allowedFields) {
-            if (req.files[field]) {
-                const filePath = req.files[field][0].path;
-                uploadResults[field] = await UploadOnCLoudinary(filePath);
-            }
-        }
-
-        res.status(200).json({ message: 'Files uploaded successfully', results: uploadResults });
-    } catch (error) {
-        console.error('Error uploading files:', error);
-        res.status(500).json({ message: 'File upload failed' });
-    }
-};
 
 export const getProducts = async (req, res) => {
     try {
@@ -1292,7 +1269,7 @@ ORDER BY
 export const getAgencyList = async (req, res, next) => {
     try {
         const query = "SELECT * FROM tbl_users WHERE branch = ? and type='agency' and isActive=1 and isApproved=1";
-        
+
         db.query(query, [req.user.branch], (error, result) => {
             if (error) {
                 return next(error); // Pass the error to the next middleware
@@ -1704,45 +1681,74 @@ async function getAllDocByUserId(id) {
         });
     });
 }
-// export const getAPR = async (req, res, next) => {
-//     try {
-//         const disbursalAmount = req.body.disbursalAmount;
-//         const approval = req.body.approval;
+export const getRoles = async (req, res, next) => {
+    try {
 
-//         // Calculate rep
-//         const rep = Math.round(disbursalAmount * (req.body.roi / 100));
+        const sql = `select * from tbl_roles order by id desc`;
+        const result = await executeQuery(sql, []);
+        console.log(req.user)
 
-//         // Calculate installmentAmount
-//         const installmentAmount = disbursalAmount + (rep * req.body.tenure);
+        return res.status(200).send({ success: true, message: "Your APR", data: result });
 
-//         // Calculate inte
-//         const inte = rep * 30;
+    } catch (error) {
+        console.error("Error occurred in approveWaiver function:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+    }
+}
+export const getRoleWiseEmployee = async (req, res) => {
+    try {
+        const Query = `select id,nbfc_name from tbl_users where branch=? and type='nbfc' and id!=? and role=? `;
+        const role=parseInt(req.user.role);
 
-//         // Calculate intem
-//         const intem = rep * req.body.tenure;
+        db.query(Query, [req.user.branch, req.user.id, (role + 1)], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
 
-//         // Calculate inte1
-//         const inte1 = inte * 12;
+console.log(Query, [req.user.branch, req.user.id,(role + 1)])
+            return res.status(200).send({
+                success: true,
+                message: "Role wise fetched",
+                data: result
+            });
+        });
 
-//         // Calculate adm
-//         const adm = req.body.adminFee;
 
-//         // Calculate gst
-//         const gst = Math.round(adm * (18 / 100) * 100) / 100;
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
 
-//         // Calculate tam
-//         const tam = adm + gst;
+    }
+}
 
-//         // Calculate apr
-//         const apr = Math.round((((inte1 + tam) / req.body.loanAmtApproved) / 30) * 365);
+export const getAllRole = async (req, res) => {
+    try {
+        const Query = `select id,nbfc_name from tbl_users where branch=? and type='nbfc'`;
+        const role=parseInt(req.user.role);
 
-//         return res.status(200).send({ success: true, message: "Your APR", data: apr });
+        db.query(Query, [req.user.branch], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
 
-//     } catch (error) {
-//         console.error("Error occurred in approveWaiver function:", error);
-//         return res.status(500).send({ success: false, message: "Internal server error." });
-//     }
-// }
+console.log(Query, [req.user.branch, req.user.id,(role + 1)])
+            return res.status(200).send({
+                success: true,
+                message: "Role wise fetched",
+                data: result
+            });
+        });
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
+
 
 
 
