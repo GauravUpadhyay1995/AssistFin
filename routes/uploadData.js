@@ -31,7 +31,10 @@ const upload = multer({
 
 // Handle file upload
 router.post('/uploadMasterData', [upload, authMiddleware], uploadController.handleUpload);
+router.post('/uploadUnpaidFileData', [upload, authMiddleware], uploadController.uploadUnpaidFileData);
+//Handle Client Upload
 router.post('/uploadClientFinder', [upload, authMiddleware], clientController.uploadClientFinder);
+
 
 
 export default router;

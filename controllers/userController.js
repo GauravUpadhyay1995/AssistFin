@@ -1538,6 +1538,7 @@ async function insertUser(req, res) {
                 // Create table if user type is nbfc
                 if (lowerType === "nbfc") {
                     await createNewTable(`tbl_master${insertedId}`);
+                    await createNewTable(`tbl_unpaid_master${insertedId}`);
                 }
 
                 // Insert pool allocations if user type is nbfc
@@ -1733,7 +1734,6 @@ export const getAllRole = async (req, res) => {
                 return res.status(500).send({ success: false, message: "Internal server error." });
             }
 
-console.log(Query, [req.user.branch, req.user.id,(role + 1)])
             return res.status(200).send({
                 success: true,
                 message: "Role wise fetched",
