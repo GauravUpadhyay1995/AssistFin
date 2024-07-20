@@ -12,6 +12,7 @@ const cpUpload = upload.fields([
 ])
 const route = express.Router();
 route.post("/getFilterAllocation", [cpUpload,authMiddleware], allocationController.getFilterAllocation);
+route.post('/unPaidDataList', [cpUpload,authMiddleware], allocationController.unPaidDataList);
 
 
 

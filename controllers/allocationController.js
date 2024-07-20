@@ -23,7 +23,6 @@ export const getFilterAllocation = async (req, res, next) => {
         let bucketString = '';
         let agencyString = '';
         let group_by = "state";
-        console.log(req.body)
         if (req.body.agency && req.body.agency.length) {
             agencyString = req.body.agency.map(item => `'${item}'`).join(',');
             conditions.push(`AND agency_name IN (${agencyString})`);
@@ -112,6 +111,57 @@ export const getFilterAllocation = async (req, res, next) => {
 
 
 
+};
+
+
+export const unPaidDataList = async (req, res) => {
+    const updateSchema = Joi.object({
+        agency_id: Joi.number().min(1).optional(),
+        month: Joi.number().min(1).optional(),
+        year: Joi.number().min(1970).optional(),
+    });
+
+    const { error } = updateSchema.validate(req.body);
+    if (error) {
+        const errorMessage = error.details.map(detail => detail.message).join(", ");
+        const errorType = error.details[0].type;
+        return res.status(400).json({ success: false, message: `${errorMessage}`, errorType: errorType });
+    }
+    try {
+        let months = 1;
+        let year = 1;
+        if (!req.body.month) {
+            const date = new Date();
+            const month = (date.getMonth() + 1).toString(); // getMonth() returns 0-11, so add 1
+            months = month.padStart(2, '0');
+        } else {
+            months = req.body.month
+        }
+        if (!req.body.year) {
+            const date = new Date();
+            year = (date.getFullYear() ).toString(); // getMonth() returns 0-11, so add 1
+
+        } else {
+            year = req.body.year
+        }
+        const extra = req.body.agency_id > 0 ? `and up.agency_name=${req.body.agency_id}` : ``;
+
+
+        const sql = `select up.* ,DATE_FORMAT(up.created_date, '%d-%m-%Y %h:%i:%s %p') as created_date,
+    u1.nbfc_name AS agency_name 
+    from tbl_unpaid_master${req.user.branch} up 
+    inner join tbl_users u1 on up.agency_name=u1.id where YEAR(up.created_date) =${year} AND MONTH(up.created_date) = ${months} ${extra}`;
+        db.query(sql, (error, result) => {
+         
+
+        });
+
+        console.log(sql)
+
+    } catch (err) {
+        console.error('Error processing file:', err);
+        res.status(500).send('Error inserting data into MySQL');
+    }
 };
 
 export const getAllUsers = async (req, res, next) => {

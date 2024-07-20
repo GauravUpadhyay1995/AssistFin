@@ -2,6 +2,8 @@ import db from '../config/db.js';
 import path from 'path';
 import xlsx from 'xlsx';
 import fs from 'fs';
+import Joi from "joi";
+
 import { addDays, isValid, parse, format } from 'date-fns';
 
 const expectedHeaders = ['loan_id',
@@ -167,6 +169,12 @@ export const uploadUnpaidFileData = async (req, res) => {
 
     try {
         const result = await processAndInsertUnpaidData(req.file.path, req.user.id);
+        const AllocateAgencyResult = AllocateAgency(req.user.branch).then(result => {
+            console.log(result); // Log the result
+        })
+            .catch(error => {
+                console.error('Error:', error); // Handle any errors
+            });
         fs.unlinkSync(req.file.path);
         if (result.success) {
             res.status(200).send({ success: true, message: "Data Uploaded" });
@@ -258,3 +266,109 @@ const processAndInsertUnpaidData = async (filePath, userId) => {
         };
     }
 };
+const AllocateAgency = async (BranchId) => {
+    // Validate BranchId to prevent SQL injection
+    if (!Number.isInteger(BranchId)) {
+        throw new Error('Invalid BranchId');
+    }
+
+    const sql = `SELECT id, state, zone, product_type, dpd_in_days 
+                 FROM tbl_unpaid_master${BranchId} WHERE DATE(created_date) = CURDATE()`;
+
+    try {
+        // Fetch data from tbl_unpaid_master${BranchId}
+        const results = await new Promise((resolve, reject) => {
+            db.query(sql, (error, result) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
+            });
+        });
+
+        // If no data found, return null
+        if (results.length === 0) {
+            return null;
+        }
+
+        // Prepare a list to hold the userIds results
+        const userIdsPromises = results.map(async (row) => {
+            const { id, state, product_type, dpd_in_days } = row;
+
+            // Convert dpd_in_days to category
+            let dpdCategory;
+            if (dpd_in_days > 0 && dpd_in_days <= 30) {
+                dpdCategory = 1;
+            } else if (dpd_in_days >= 31 && dpd_in_days <= 60) {
+                dpdCategory = 2;
+            } else if (dpd_in_days >= 61 && dpd_in_days <= 90) {
+                dpdCategory = 3;
+            } else if (dpd_in_days >= 91 && dpd_in_days <= 120) {
+                dpdCategory = 4;
+            } else if (dpd_in_days >= 121 && dpd_in_days <= 150) {
+                dpdCategory = 5;
+            } else if (dpd_in_days >= 151 && dpd_in_days <= 180) {
+                dpdCategory = 6;
+            } else if (dpd_in_days >= 181 && dpd_in_days <= 365) {
+                dpdCategory = 7;
+            } else {
+                dpdCategory = 8;
+            }
+
+            // Query to get userId from tbl_pool_allocations
+            const selectSql = `
+                SELECT userId
+                FROM tbl_pool_allocations
+                WHERE JSON_CONTAINS(state, ?, '$')
+                  AND JSON_CONTAINS(product, ?, '$')
+                  AND JSON_CONTAINS(bucket, ?, '$')
+            `;
+
+            try {
+                // Execute the select query
+                const userIds = await new Promise((resolve, reject) => {
+                    db.query(selectSql, [`"${state}"`, `"${product_type}"`, `"${dpdCategory}"`], (error, result) => {
+                        if (error) {
+                            reject(error);
+                        } else {
+                            resolve(result.map(row => row.userId)); // Extract userId values
+                        }
+                    });
+                });
+
+                if (userIds.length > 0) {
+                    // Construct the update query with dynamic table name
+                    const updateSql = `UPDATE tbl_unpaid_master${BranchId} SET agency_name = ? WHERE id = ?`;
+
+                    // Execute the update query
+                    await new Promise((resolve, reject) => {
+                        db.query(updateSql, [userIds.join(', '), id], (error, result) => {
+                            console.log(updateSql, [userIds.join(', '), id])
+                            if (error) {
+                                reject(error);
+                            } else {
+                                resolve(result);
+                            }
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('Error querying userId:', error);
+                return [];
+            }
+        });
+
+        // Execute all the userId queries in parallel
+        await Promise.all(userIdsPromises);
+
+    } catch (error) {
+        console.error('Error fetching data from tbl_unpaid_master:', error);
+        throw error;
+    }
+};
+
+
+
+
+

@@ -1407,7 +1407,6 @@ async function getWaiverRuleCriteria(ProductName, BranchId, dpdDays, agencyId) {
     tbl_waiver_rules w INNER JOIN tbl_products p ON w.branch_id = p.branch WHERE p.branch = ?  AND p.product = ? and w.bucket_id=?  limit 1`;
     return new Promise((resolve, reject) => {
         db.query(query, [BranchId, ProductName, dpdDays], (error, result) => {
-            console.log(query, [BranchId, ProductName, dpdDays])
             if (error) {
                 reject(error);
             } else {
