@@ -1698,7 +1698,7 @@ export const getRoles = async (req, res, next) => {
 export const getRoleWiseEmployee = async (req, res) => {
     try {
         const Query = `select id,nbfc_name from tbl_users where branch=? and type='nbfc' and id!=? and role=? `;
-        const role=parseInt(req.user.role);
+        const role = parseInt(req.user.role);
 
         db.query(Query, [req.user.branch, req.user.id, (role + 1)], async (error, result) => {
             if (error) {
@@ -1706,7 +1706,7 @@ export const getRoleWiseEmployee = async (req, res) => {
                 return res.status(500).send({ success: false, message: "Internal server error." });
             }
 
-console.log(Query, [req.user.branch, req.user.id,(role + 1)])
+            console.log(Query, [req.user.branch, req.user.id, (role + 1)])
             return res.status(200).send({
                 success: true,
                 message: "Role wise fetched",
@@ -1725,7 +1725,7 @@ console.log(Query, [req.user.branch, req.user.id,(role + 1)])
 export const getAllRole = async (req, res) => {
     try {
         const Query = `select id,nbfc_name from tbl_users where branch=? and type='nbfc'`;
-        const role=parseInt(req.user.role);
+        const role = parseInt(req.user.role);
 
         db.query(Query, [req.user.branch], async (error, result) => {
             if (error) {
@@ -1738,6 +1738,42 @@ export const getAllRole = async (req, res) => {
                 message: "Role wise fetched",
                 data: result
             });
+        });
+
+
+    } catch (error) {
+        console.error("Error occurred while querying the database:", error);
+        return res.status(500).send({ success: false, message: "Internal server error." });
+
+    }
+}
+
+
+export const getAgencyDetials = async (req, res) => {
+    try {
+        const Query = `select * from tbl_users where branch=? and type='agency' and id=?`;
+        db.query(Query, [req.user.branch, req.body.agencyId], async (error, result) => {
+            if (error) {
+                console.error("Error occurred while querying the database:", error);
+                return res.status(500).send({ success: false, message: "Internal server error." });
+            }
+            if (result.length) {
+                const sanitizedResult = result.map(user => {
+                    const { password, text_password, ...sanitizedUser } = user;
+                    return sanitizedUser;
+                });
+                const PoolDetails=await getPoolDetailsByAgencyId(req.body.agencyId)
+              
+
+                return res.status(200).send({
+                    success: true,
+                    message: "Role wise fetched",
+                    data: sanitizedResult,
+                    PoolDetails:PoolDetails
+                });
+            } else {
+                return res.status(404).json({ message: "No agencies found" });
+            }
         });
 
 

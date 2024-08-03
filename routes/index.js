@@ -61,9 +61,11 @@ route.post("/addWaiverRule", [authMiddleware], userController.addWaiverRule);
 route.post("/getAgencyList", [authMiddleware], userController.getAgencyList);
 
 route.post("/waiverRuleLists", [authMiddleware], userController.waiverRuleLists);
- route.post("/getRoles", [authMiddleware], userController.getRoles);
- route.post("/getRoleWiseEmployee", [authMiddleware], userController.getRoleWiseEmployee);
- 
- route.post("/getAllRole", [authMiddleware], userController.getAllRole);
+route.post("/getRoles", [authMiddleware], userController.getRoles);
+route.post("/getRoleWiseEmployee", [authMiddleware], userController.getRoleWiseEmployee);
+
+route.post("/getAllRole", [authMiddleware], userController.getAllRole);
+
+route.post("/getAgencyDetials", [authMiddleware], userController.getAgencyDetials);
 
 export default route;
